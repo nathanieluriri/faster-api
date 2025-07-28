@@ -34,7 +34,7 @@ def update_main_routes():
             route_imports.append(f"from {module_path} import router as {router_alias}")
 
             # Include line
-            prefix = f"/{version}/{module_name}"
+            prefix = f"/{version}"
             include_lines.append(f"app.include_router({router_alias}, prefix='{prefix}')")
 
     if not route_imports:
