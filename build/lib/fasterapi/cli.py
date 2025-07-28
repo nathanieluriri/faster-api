@@ -6,7 +6,7 @@ from fasterapi.scaffolder.generate_service import create_service_file
 from fasterapi.scaffolder.generate_route import create_route_file,get_highest_numbered_api_version,get_latest_modified_api_version
 from fasterapi.__version__ import __version__
 from fasterapi.scaffolder.mount_routes import update_main_routes
-import uvicorn
+import subprocess
 
 @click.group()
 @click.version_option(__version__, '--version', '-v', message='FasterAPI version %(version)s')
@@ -49,8 +49,7 @@ def mount():
 @cli.command()
 def run_d():
     """runs the dev environment using the normal uvicorn way"""
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
-
+    subprocess.run(["uvicorn", "app.main:app", "--reload"])
 
 @cli.command()
 @click.argument("name")
