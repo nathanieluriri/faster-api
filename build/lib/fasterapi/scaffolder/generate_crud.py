@@ -21,19 +21,19 @@ from pymongo import ReturnDocument
 from core.database import db
 from schemas.{db_name} import {update_class_name}, {create_class_name}, {out_class_name}
 
-def create_{db_name}({db_name}_data: {create_class_name}) -> {out_class_name}:
+async def create_{db_name}({db_name}_data: {create_class_name}) -> {out_class_name}:
     {db_name}_dict = {db_name}_data.model_dump()
-    result = db.{db_name}s.insert_one({db_name}_dict)
+    result =await db.{db_name}s.insert_one({db_name}_dict)
     returnable_result = {out_class_name}(**{db_name}_dict)
     return returnable_result
 
-def get_{db_name}(filter_dict: dict) -> {out_class_name}:
-    result = db.{db_name}s.find_one(filter_dict)
+async def get_{db_name}(filter_dict: dict) -> {out_class_name}:
+    result =await db.{db_name}s.find_one(filter_dict)
     returnable_result = {out_class_name}(**result)
     return returnable_result
 
-def update_{db_name}(filter_dict: dict, {db_name}_data: {update_class_name}) -> {out_class_name}:
-    result = db.{db_name}s.find_one_and_update(
+async def update_{db_name}(filter_dict: dict, {db_name}_data: {update_class_name}) -> {out_class_name}:
+    result = await db.{db_name}s.find_one_and_update(
         filter_dict,
         {{"$set": {db_name}_data.model_dump()}},
         return_document=ReturnDocument.AFTER
@@ -41,8 +41,8 @@ def update_{db_name}(filter_dict: dict, {db_name}_data: {update_class_name}) -> 
     returnable_result = {out_class_name}(**result)
     return returnable_result
 
-def delete_{db_name}(filter_dict: dict):
-    return db.{db_name}s.delete_one(filter_dict)
+async def delete_{db_name}(filter_dict: dict):
+    return await db.{db_name}s.delete_one(filter_dict)
 '''.strip()
 
     with open(repo_path, "w") as f:
