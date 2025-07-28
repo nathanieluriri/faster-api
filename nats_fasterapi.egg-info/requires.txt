@@ -1,0 +1,9 @@
+click
+pymongo
+pydantic
+fastapi[all]
+motor
+redis
+requests
+pyjwt
+python-dotenv
