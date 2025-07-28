@@ -2,7 +2,7 @@ from pathlib import Path
 
 def create_service_file(name: str):
     db_name = name.lower()
-    repo_module = f"repository.{db_name}_repo"
+    repo_module = f"repositories.{db_name}"
     schema_module = f"schemas.{db_name}"
     service_path = Path.cwd() / "services" / f"{db_name}.py"
 
@@ -75,4 +75,4 @@ async def update_{db_name}_by_id({db_name}_id: str, {db_name}_data: {update_clas
     with open(service_path, "w") as f:
         f.write(service_code)
 
-    print(f"✅ Service for '{db_name}' created at services/{db_name}.py")
+    print(f"✅ Service for '{db_name}' created at services/{db_name}_services.py")
