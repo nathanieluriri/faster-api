@@ -49,7 +49,7 @@ def mount():
 @cli.command()
 def run_d():
     """runs the dev environment using the normal uvicorn way"""
-    subprocess.run(["uvicorn", "app.main:app", "--reload"])
+    subprocess.run(["uvicorn", "main:app", "--reload"])
 
 @cli.command()
 @click.argument("name")
