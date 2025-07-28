@@ -19,6 +19,7 @@ def create_crud_file(name: str):
     crud_code = f'''
 from pymongo import ReturnDocument
 from core.database import db
+from typing import List,Optional
 from schemas.{db_name} import {update_class_name}, {create_class_name}, {out_class_name}
 
 async def create_{db_name}({db_name}_data: {create_class_name}) -> {out_class_name}:
@@ -32,11 +33,11 @@ async def get_{db_name}(filter_dict: dict) -> {out_class_name}:
     returnable_result = {out_class_name}(**result)
     return returnable_result
     
-async def get_{db_name}s(filter_dict: dict = {{}}) -> List[GuestOut]:
+async def get_{db_name}s(filter_dict: dict = {{}}) -> List[{out_class_name}]:
     cursor = db.{db_name}s.find(filter_dict)
     {db_name}s = []
     async for doc in cursor:
-        {db_name}s.append(GuestOut(**doc))
+        {db_name}s.append({out_class_name}(**doc))
     return {db_name}s
 
 async def update_{db_name}(filter_dict: dict, {db_name}_data: {update_class_name}) -> {out_class_name}:
