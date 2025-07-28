@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: nats-fasterapi
-Version: 0.2.32
+Version: 0.2.33
 Summary: A CLI tool to scaffold FastAPI projects with CRUD and schema support
 Author: Nathaniel Uriri
 Author-email: nat@uriri.com.ng

@@ -4,7 +4,7 @@ def create_service_file(name: str):
     db_name = name.lower()
     repo_module = f"repositories.{db_name}"
     schema_module = f"schemas.{db_name}"
-    service_path = Path.cwd() / "services" / f"{db_name}.py"
+    service_path = Path.cwd() / "services" / f"{db_name}_service.py"
 
     class_name = "".join([part.capitalize() for part in db_name.split("_")])
     create_class_name = f"{class_name}Create"
