@@ -41,7 +41,6 @@ def make_service(name):
     
 
 @cli.command()
-@click.argument()
 def mount():
     """Generates Python services templates to interact with schema and repository."""
     update_main_routes()
