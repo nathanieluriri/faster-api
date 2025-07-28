@@ -47,7 +47,11 @@ def mount():
     update_main_routes()
     
 @cli.command()
+def run_d():
+    """runs the dev environment using the normal uvicorn way"""
+    subprocess.run(["uvicorn", "main:app", "--reload"])
 
+@cli.command()
 def update():
     """Upgrades a pip package to the latest version"""
     try:
@@ -55,7 +59,6 @@ def update():
         click.secho(f"✅ Fasterapi is now even faster", fg="green")
     except subprocess.CalledProcessError:
         click.secho(f"❌ Failed to speed up fasterapi'", fg="red", err=True)
-
 
 @cli.command()
 @click.argument("name")
