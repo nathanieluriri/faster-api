@@ -20,6 +20,7 @@ setup(
         "motor",
         "redis",
         "requests",
+        "bcrypt",
         "pyjwt",
         "python-dotenv",
     ],
