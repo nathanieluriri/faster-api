@@ -1,39 +1,49 @@
 
-def get_latest_modified_api_version(base_path='/api'):
-    import os
-    api_path = os.path.abspath(base_path)
-    if not os.path.exists(api_path):
-        raise FileNotFoundError(f"The directory '{api_path}' does not exist.")
+import os
+
+def get_latest_modified_api_version(base_path=None):
+    # If no base path is provided, look for 'api' in the current working directory
+    if base_path is None:
+        base_path = os.path.join(os.getcwd(), 'api')
+    else:
+        base_path = os.path.abspath(base_path)
+
+    if not os.path.exists(base_path):
+        raise FileNotFoundError(f"The directory '{base_path}' does not exist.")
     
     subdirs = [
-        os.path.join(api_path, d) for d in os.listdir(api_path)
-        if os.path.isdir(os.path.join(api_path, d))
+        os.path.join(base_path, d) for d in os.listdir(base_path)
+        if os.path.isdir(os.path.join(base_path, d))
     ]
     
     if not subdirs:
-        raise FileNotFoundError(f"No version folders found in '{api_path}'.")
+        raise FileNotFoundError(f"No version folders found in '{base_path}'.")
 
     latest_subdir = max(subdirs, key=os.path.getmtime)
     return os.path.basename(latest_subdir)
 
+import re
 
-def get_highest_numbered_api_version(base_path='/api'):
-    import os
-    import re
-    api_path = os.path.abspath(base_path)
-    if not os.path.exists(api_path):
-        raise FileNotFoundError(f"The directory '{api_path}' does not exist.")
+def get_highest_numbered_api_version(base_path=None):
+    if base_path is None:
+        base_path = os.path.join(os.getcwd(), 'api')
+    else:
+        base_path = os.path.abspath(base_path)
+
+    if not os.path.exists(base_path):
+        raise FileNotFoundError(f"The directory '{base_path}' does not exist.")
     
     version_dirs = [
-        d for d in os.listdir(api_path)
-        if os.path.isdir(os.path.join(api_path, d)) and re.match(r'^v\d+$', d)
+        d for d in os.listdir(base_path)
+        if os.path.isdir(os.path.join(base_path, d)) and re.match(r'^v\d+$', d)
     ]
 
     if not version_dirs:
-        raise FileNotFoundError(f"No version folders with pattern 'vN' found in '{api_path}'.")
+        raise FileNotFoundError(f"No version folders like 'v1', 'v2' found in '{base_path}'.")
 
     highest_version = max(version_dirs, key=lambda v: int(v[1:]))
     return highest_version
+
 
 def create_route_file(name: str,version:str):
     from pathlib import Path
