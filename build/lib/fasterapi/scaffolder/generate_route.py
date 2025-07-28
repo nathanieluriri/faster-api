@@ -68,10 +68,15 @@ def create_route_file(name: str,version:str):
 
     def get_extra_fields(create_model: BaseModel, base_model: BaseModel):
         return list(set(create_model.model_fields.keys()) - set(base_model.model_fields.keys()))
+    import importlib
 
+    schema_module = importlib.import_module(f"schemas.{db_name}")
+    create_model = getattr(schema_module, f"{class_name}Create")
+    base_model = getattr(schema_module, f"{class_name}Base")
     def generate_dynamic_create_route(class_name: str, db_name: str):
-        create_model = eval(f"{class_name}Create")
-        base_model = eval(f"{class_name}Base")
+        schema_module = importlib.import_module(f"schemas.{db_name}")
+        create_model = getattr(schema_module, f"{class_name}Create")
+        base_model = getattr(schema_module, f"{class_name}Base")
         extras = get_extra_fields(create_model, base_model)
 
         if not extras:
@@ -130,7 +135,8 @@ async def get_my_{db_name}s(userId: str = Query(..., description="User ID to fet
     items = await retrieve_{db_name}s_by_user(userId=userId)
     return APIResponse(status_code=200, data=items, detail="User's items fetched")
 '''
-    dynamic_create_route = generate_dynamic_create_route(class_name, db_name)
+    dynamic_create_route = generate_dynamic_create_route(class_name, db_name, create_model, base_model)
+
 
 
     with open(route_path, "w") as f:
