@@ -31,6 +31,13 @@ async def get_{db_name}(filter_dict: dict) -> {out_class_name}:
     result =await db.{db_name}s.find_one(filter_dict)
     returnable_result = {out_class_name}(**result)
     return returnable_result
+    
+async def get_{db_name}s(filter_dict: dict = {{}}) -> List[GuestOut]:
+    cursor = db.{db_name}s.find(filter_dict)
+    {db_name}s = []
+    async for doc in cursor:
+        {db_name}s.append(GuestOut(**doc))
+    return {db_name}s
 
 async def update_{db_name}(filter_dict: dict, {db_name}_data: {update_class_name}) -> {out_class_name}:
     result = await db.{db_name}s.find_one_and_update(

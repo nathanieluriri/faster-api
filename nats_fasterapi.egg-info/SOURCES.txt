@@ -10,6 +10,7 @@ fasterapi/scaffolder/generate_crud.py
 fasterapi/scaffolder/generate_project.py
 fasterapi/scaffolder/generate_route.py
 fasterapi/scaffolder/generate_schema.py
+fasterapi/scaffolder/generate_service.py
 fasterapi/scaffolder/templates/project_template/.env.example
 fasterapi/scaffolder/templates/project_template/.gitignore
 fasterapi/scaffolder/templates/project_template/docker-compose.yml

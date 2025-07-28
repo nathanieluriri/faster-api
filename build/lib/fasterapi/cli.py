@@ -2,6 +2,7 @@ import click
 from fasterapi.scaffolder.generate_project import create_project
 from fasterapi.scaffolder.generate_crud import create_crud_file
 from fasterapi.scaffolder.generate_schema import create_schema_file
+from fasterapi.scaffolder.generate_service import create_service_file
 from fasterapi.scaffolder.generate_route import create_route_file,get_highest_numbered_api_version,get_latest_modified_api_version
 from fasterapi.__version__ import __version__
 
@@ -30,6 +31,14 @@ def make_crud(name):
 def make_schema(name):
     """Generate Pydantic classes templates for a schema."""
     create_schema_file(name)
+    
+
+@cli.command()
+@click.argument("name")
+def make_service(name):
+    """Generates Python services templates to interact with schema and repository."""
+    create_service_file(name)
+
 
 @cli.command()
 @click.argument("name")
