@@ -26,6 +26,7 @@ from schemas.{db_name} import {update_class_name}, {create_class_name}, {out_cla
 async def create_{db_name}({db_name}_data: {create_class_name}) -> {out_class_name}:
     {db_name}_dict = {db_name}_data.model_dump()
     result =await db.{db_name}s.insert_one({db_name}_dict)
+    result = await db.{db_name}s.find_one(filter={{"id":result.inserted_id}})
     returnable_result = {out_class_name}(**result)
     return returnable_result
 
