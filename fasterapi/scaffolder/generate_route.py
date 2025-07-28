@@ -132,7 +132,7 @@ from services.{db_name}_service import (
     add_{db_name},
     remove_{db_name},
     retrieve_{db_name}s,
-    retrieve_{db_name}s_by_user,
+    retrieve_{db_name}_by_{db_name}_id,
     update_{db_name},
 )
 
