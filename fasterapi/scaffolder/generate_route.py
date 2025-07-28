@@ -1,12 +1,27 @@
-
 import os
+import re
+import sys
+from pathlib import Path
+from pydantic import BaseModel
+import importlib
 
-def get_latest_modified_api_version(base_path=None):
-    # If no base path is provided, look for 'api' in the current working directory
-    if base_path is None:
+def get_latest_modified_api_version(base_dir: str = None) -> str:
+    """
+    Get the latest modified API version directory (e.g., 'v1', 'v2').
+    
+    Args:
+        base_dir (str): Base directory of the project. Defaults to current directory.
+    
+    Returns:
+        str: Name of the latest modified version directory.
+    
+    Raises:
+        FileNotFoundError: If the API directory or version folders are not found.
+    """
+    if base_dir is None:
         base_path = os.path.join(os.getcwd(), 'api')
     else:
-        base_path = os.path.abspath(base_path)
+        base_path = os.path.abspath(os.path.join(base_dir, 'api'))
 
     if not os.path.exists(base_path):
         raise FileNotFoundError(f"The directory '{base_path}' does not exist.")
@@ -22,13 +37,23 @@ def get_latest_modified_api_version(base_path=None):
     latest_subdir = max(subdirs, key=os.path.getmtime)
     return os.path.basename(latest_subdir)
 
-import re
-
-def get_highest_numbered_api_version(base_path=None):
-    if base_path is None:
+def get_highest_numbered_api_version(base_dir: str = None) -> str:
+    """
+    Get the highest numbered API version directory (e.g., 'v2' > 'v1').
+    
+    Args:
+        base_dir (str): Base directory of the project. Defaults to current directory.
+    
+    Returns:
+        str: Name of the highest numbered version directory.
+    
+    Raises:
+        FileNotFoundError: If the API directory or version folders are not found.
+    """
+    if base_dir is None:
         base_path = os.path.join(os.getcwd(), 'api')
     else:
-        base_path = os.path.abspath(base_path)
+        base_path = os.path.abspath(os.path.join(base_dir, 'api'))
 
     if not os.path.exists(base_path):
         raise FileNotFoundError(f"The directory '{base_path}' does not exist.")
@@ -41,44 +66,71 @@ def get_highest_numbered_api_version(base_path=None):
     if not version_dirs:
         raise FileNotFoundError(f"No version folders like 'v1', 'v2' found in '{base_path}'.")
 
-    highest_version = max(version_dirs, key=lambda v: int(v[1:]))
-    return highest_version
+    return max(version_dirs, key=lambda v: int(v[1:]))
 
-
-def create_route_file(name: str,version:str):
-    from pathlib import Path
+def create_route_file(name: str, version: str = None, base_dir: str = None) -> bool:
+    """
+    Create a FastAPI route file for a given resource name and API version.
+    
+    Args:
+        name (str): Name of the resource (e.g., 'user' or 'order_item').
+        version (str): API version (e.g., 'v1'). If None, uses highest numbered version.
+        base_dir (str): Base directory of the project. Defaults to current directory.
+    
+    Returns:
+        bool: True if successful, False otherwise.
+    """
+    # Set base directory
+    base_path = Path(base_dir) if base_dir else Path.cwd()
+    
+    # Ensure schemas and services are in sys.path
+    sys.path.append(str(base_path))
+    
+    # Determine API version
+    if not version:
+        try:
+            version = get_highest_numbered_api_version(base_dir)
+        except FileNotFoundError as e:
+            print(f"❌ {e}")
+            return False
 
     db_name = name.lower()
-    schema_path = Path.cwd() / "schemas" / f"{db_name}.py"
-    service_path = Path.cwd() / "services" / f"{db_name}_service.py"
-    repo_path = Path.cwd() / "repositories" / f"{db_name}.py"
-    route_path = Path.cwd() / "api" /version/ f"{db_name}.py"
-    if not schema_path.exists():
-        print(f"❌ Schema file {schema_path} not found. Schema needed to generate route for {db_name}")
-        return
-    if not repo_path.exists():
-        print(f"❌ Repository file {repo_path} not found. Repo needed to generate route for {db_name}")
-        return
-    if not service_path.exists():
-        print(f"❌ Service file {service_path} not found. Service needed to generate route for {db_name}")
-        return
     class_name = "".join(part.capitalize() for part in db_name.split("_"))
-    from pydantic import BaseModel
-    from inspect import signature
+    
+    # Define file paths
+    schema_path = base_path / "schemas" / f"{db_name}.py"
+    service_path = base_path / "services" / f"{db_name}_service.py"
+    repo_path = base_path / "repositories" / f"{db_name}.py"
+    route_path = base_path / "api" / version / f"{db_name}.py"
+    
+    # Check for required files
+    for path, desc in [
+        (schema_path, "Schema"),
+        (service_path, "Service"),
+        (repo_path, "Repository")
+    ]:
+        if not path.exists():
+            print(f"❌ {desc} file {path} not found.")
+            return False
+    
+    # Dynamically import schema to verify models
+    try:
+        schema_module = importlib.import_module(f"schemas.{db_name}")
+        for model in [f"{class_name}Create", f"{class_name}Base", f"{class_name}Out", f"{class_name}Update"]:
+            if not hasattr(schema_module, model):
+                print(f"❌ Model {model} not found in {schema_path}")
+                return False
+        create_model = getattr(schema_module, f"{class_name}Create")
+        base_model = getattr(schema_module, f"{class_name}Base")
+    except ImportError as e:
+        print(f"❌ Failed to import schemas.{db_name}: {e}")
+        return False
 
     def get_extra_fields(create_model: BaseModel, base_model: BaseModel):
         return list(set(create_model.model_fields.keys()) - set(base_model.model_fields.keys()))
-    import importlib
 
-    schema_module = importlib.import_module(f"schemas.{db_name}")
-    create_model = getattr(schema_module, f"{class_name}Create")
-    base_model = getattr(schema_module, f"{class_name}Base")
     def generate_dynamic_create_route(class_name: str, db_name: str):
-        schema_module = importlib.import_module(f"schemas.{db_name}")
-        create_model = getattr(schema_module, f"{class_name}Create")
-        base_model = getattr(schema_module, f"{class_name}Base")
         extras = get_extra_fields(create_model, base_model)
-
         if not extras:
             return f'''
     @router.post("/", response_model=APIResponse[{class_name}Out], status_code=status.HTTP_201_CREATED)
@@ -87,14 +139,11 @@ def create_route_file(name: str,version:str):
         created = await add_{db_name}({db_name}Data=payload)
         return APIResponse(status_code=201, data=created, detail="Created successfully")
     '''
-
-        # Construct path and param declarations
         path_string = "/".join([f'{{{field}}}' for field in extras])
         param_decls = "\n".join([
             f'    {field}: str = Path(..., description="Path parameter: {field}")' for field in extras
         ])
         param_names = ", ".join([f"{field}={field}" for field in extras])
-
         return f'''
     @router.post("/{path_string}/", response_model=APIResponse[{class_name}Out], status_code=status.HTTP_201_CREATED)
     async def create_{db_name}(item: {class_name}Base,{chr(10)}{param_decls}):
@@ -103,8 +152,8 @@ def create_route_file(name: str,version:str):
         return APIResponse(status_code=201, data=created, detail="Created successfully")
     '''
 
-
-    route_code = f'''from fastapi import APIRouter, HTTPException, Query, status
+    # Generate route code
+    route_code = f"""from fastapi import APIRouter, HTTPException, Query, status, Path
 from typing import List
 from schemas.response_schema import APIResponse
 from schemas.{db_name} import (
@@ -123,23 +172,26 @@ from services.{db_name}_service import (
 
 router = APIRouter(prefix="/{db_name}s", tags=["{class_name}s"])
 
-
 @router.get("/", response_model=APIResponse[List[{class_name}Out]])
 async def list_{db_name}s():
     items = await retrieve_{db_name}s()
     return APIResponse(status_code=200, data=items, detail="Fetched successfully")
 
-
 @router.get("/me", response_model=APIResponse[List[{class_name}Out]])
 async def get_my_{db_name}s(userId: str = Query(..., description="User ID to fetch user-specific items")):
     items = await retrieve_{db_name}s_by_user(userId=userId)
     return APIResponse(status_code=200, data=items, detail="User's items fetched")
-'''
-    dynamic_create_route = generate_dynamic_create_route(class_name, db_name, create_model, base_model)
+"""
+    dynamic_create_route = generate_dynamic_create_route(class_name, db_name)
 
-
-
-    with open(route_path, "w") as f:
-        f.write(route_code)
-        f.write(dynamic_create_route)
-    print(f"✅ Route file created: api/{version}/{db_name}.py")
+    # Write route file
+    try:
+        route_path.parent.mkdir(parents=True, exist_ok=True)
+        with route_path.open("w") as f:
+            f.write(route_code)
+            f.write(dynamic_create_route)
+        print(f"✅ Route file created: {route_path}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to write route file: {e}")
+        return False
