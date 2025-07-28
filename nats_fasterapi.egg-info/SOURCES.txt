@@ -4,8 +4,8 @@ pyproject.toml
 setup.py
 fasterapi/__init__.py
 fasterapi/__version__.py
+fasterapi/cli.py
 fasterapi/scaffolder/__init__.py
-fasterapi/scaffolder/cli.py
 fasterapi/scaffolder/generate_crud.py
 fasterapi/scaffolder/generate_project.py
 fasterapi/scaffolder/generate_route.py
