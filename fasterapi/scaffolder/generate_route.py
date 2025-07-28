@@ -1,5 +1,5 @@
 
-def get_latest_modified_api_version(base_path='templates/project_template/api'):
+def get_latest_modified_api_version(base_path='/api'):
     import os
     api_path = os.path.abspath(base_path)
     if not os.path.exists(api_path):
