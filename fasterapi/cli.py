@@ -42,7 +42,7 @@ def make_service(name):
 
 @cli.command()
 def mount():
-    """Generates Python services templates to interact with schema and repository."""
+    """Updates the main file with routes from the api/v system."""
     update_main_routes()
 
 

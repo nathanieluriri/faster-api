@@ -9,40 +9,48 @@ def update_main_routes():
         print("⚠️  Couldn't find 'api/' folder. Are you running this from your project root directory?")
         return
 
-    version_dirs = [d for d in api_dir.iterdir() if d.is_dir() and d.name.startswith("v")]
-    version_dirs.sort()
-
-    if not version_dirs:
-        print("⚠️  No versioned API directories found in 'api/'. Expected folders like 'v1', 'v2', etc.")
-        return
-
-    route_lines = []
-
-    for vdir in version_dirs:
-        version = vdir.name
-        module_path = f"api.{version}.routes"
-        route_lines.append(f"from {module_path} import router as {version}_router")
-    
-    route_lines.append("")
-    for vdir in version_dirs:
-        version = vdir.name
-        route_lines.append(f"app.include_router({version}_router, prefix='/{version}')")
-
     if not main_file.exists():
         print("❌ 'main.py' not found in project root. Make sure you're in the right directory.")
         return
+
+    route_imports = []
+    include_lines = []
+
+    for version_dir in sorted(api_dir.glob("v*")):
+        if not version_dir.is_dir():
+            continue
+
+        version = version_dir.name  # e.g., "v1"
+
+        for py_file in sorted(version_dir.glob("*.py")):
+            if py_file.name == "__init__.py":
+                continue
+
+            module_name = py_file.stem  # e.g., 'admin'
+            module_path = f"api.{version}.{module_name}"
+            router_alias = f"{version}_{module_name}_router"
+
+            # Import line
+            route_imports.append(f"from {module_path} import router as {router_alias}")
+
+            # Include line
+            prefix = f"/{version}/{module_name}"
+            include_lines.append(f"app.include_router({router_alias}, prefix='{prefix}')")
+
+    if not route_imports:
+        print("⚠️  No route modules found in version folders.")
+        return
+
+    # Prepare block
+    start_tag = "# --- auto-routes-start ---"
+    end_tag = "# --- auto-routes-end ---"
+    new_block = f"{start_tag}\n" + "\n".join(route_imports + [""] + include_lines) + f"\n{end_tag}"
 
     try:
         main_contents = main_file.read_text()
     except Exception as e:
         print(f"❌ Failed to read main.py: {e}")
         return
-
-    # Replace a block between special comments or append if not found
-    start_tag = "# --- auto-routes-start ---"
-    end_tag = "# --- auto-routes-end ---"
-
-    new_block = f"{start_tag}\n" + "\n".join(route_lines) + f"\n{end_tag}"
 
     if start_tag in main_contents and end_tag in main_contents:
         updated = (
@@ -55,6 +63,6 @@ def update_main_routes():
 
     try:
         main_file.write_text(updated)
-        print(f"✅ main.py updated with routes: {[v.name for v in version_dirs]}")
+        print(f"✅ main.py updated with routes from: {[f.name for f in version_dir.glob('*.py') if f.name != '__init__.py']}")
     except Exception as e:
         print(f"❌ Failed to write to main.py: {e}")
