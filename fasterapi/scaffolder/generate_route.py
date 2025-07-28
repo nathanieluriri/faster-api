@@ -126,34 +126,10 @@ def create_route_file(name: str, version: str = None, base_dir: str = None) -> b
         print(f"❌ Failed to import schemas.{db_name}: {e}")
         return False
 
-    def get_extra_fields(create_model: BaseModel, base_model: BaseModel):
-        return list(set(create_model.model_fields.keys()) - set(base_model.model_fields.keys()))
-
-    def generate_dynamic_create_route(class_name: str, db_name: str):
-        extras = get_extra_fields(create_model, base_model)
-        if not extras:
-            return f'''
-    @router.post("/", response_model=APIResponse[{class_name}Out], status_code=status.HTTP_201_CREATED)
-    async def create_{db_name}(item: {class_name}Base):
-        payload = {class_name}Create(**item.model_dump())
-        created = await add_{db_name}({db_name}Data=payload)
-        return APIResponse(status_code=201, data=created, detail="Created successfully")
-    '''
-        path_string = "/".join([f'{{{field}}}' for field in extras])
-        param_decls = "\n".join([
-            f'    {field}: str = Path(..., description="Path parameter: {field}")' for field in extras
-        ])
-        param_names = ", ".join([f"{field}={field}" for field in extras])
-        return f'''
-    @router.post("/{path_string}/", response_model=APIResponse[{class_name}Out], status_code=status.HTTP_201_CREATED)
-    async def create_{db_name}(item: {class_name}Base,{chr(10)}{param_decls}):
-        payload = {class_name}Create(**item.model_dump(), {param_names})
-        created = await add_{db_name}({db_name}Data=payload)
-        return APIResponse(status_code=201, data=created, detail="Created successfully")
-    '''
 
     # Generate route code
-    route_code = f"""from fastapi import APIRouter, HTTPException, Query, status, Path
+    route_code = f"""
+from fastapi import APIRouter, HTTPException, Query, status, Path
 from typing import List
 from schemas.response_schema import APIResponse
 from schemas.{db_name} import (
@@ -181,15 +157,14 @@ async def list_{db_name}s():
 async def get_my_{db_name}s(userId: str = Query(..., description="User ID to fetch user-specific items")):
     items = await retrieve_{db_name}s_by_user(userId=userId)
     return APIResponse(status_code=200, data=items, detail="User's items fetched")
-"""
-    dynamic_create_route = generate_dynamic_create_route(class_name, db_name)
+""" 
 
     # Write route file
     try:
         route_path.parent.mkdir(parents=True, exist_ok=True)
         with route_path.open("w") as f:
             f.write(route_code)
-            f.write(dynamic_create_route)
+         
         print(f"✅ Route file created: {route_path}")
         return True
     except Exception as e:
