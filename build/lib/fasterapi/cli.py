@@ -5,7 +5,7 @@ from fasterapi.scaffolder.generate_schema import create_schema_file
 from fasterapi.scaffolder.generate_service import create_service_file
 from fasterapi.scaffolder.generate_route import create_route_file,get_highest_numbered_api_version,get_latest_modified_api_version
 from fasterapi.__version__ import __version__
-
+from fasterapi.scaffolder.mount_routes import update_main_routes
 
 @click.group()
 @click.version_option(__version__, '--version', '-v', message='FasterAPI version %(version)s')
@@ -38,6 +38,13 @@ def make_schema(name):
 def make_service(name):
     """Generates Python services templates to interact with schema and repository."""
     create_service_file(name)
+    
+
+@cli.command()
+@click.argument()
+def mount():
+    """Generates Python services templates to interact with schema and repository."""
+    update_main_routes()
 
 
 @cli.command()
