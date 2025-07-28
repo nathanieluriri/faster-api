@@ -144,9 +144,9 @@ async def list_{db_name}s():
     return APIResponse(status_code=200, data=items, detail="Fetched successfully")
 
 @router.get("/me", response_model=APIResponse[List[{class_name}Out]])
-async def get_my_{db_name}s(userId: str = Query(..., description="User ID to fetch user-specific items")):
-    items = await retrieve_{db_name}s_by_user(userId=userId)
-    return APIResponse(status_code=200, data=items, detail="User's items fetched")
+async def get_my_{db_name}s(id: str = Query(..., description="{db_name} ID to fetch specific item")):
+    items = await retrieve_{db_name}s_by_{class_name}(id=id)
+    return APIResponse(status_code=200, data=items, detail="{db_name}s items fetched")
 """ 
 
     # Write route file
