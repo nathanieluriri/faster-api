@@ -17,7 +17,7 @@ def get_latest_modified_api_version(base_path='templates/project_template/api'):
     return os.path.basename(latest_subdir)
 
 
-def get_highest_numbered_api_version(base_path='templates/project_template/api'):
+def get_highest_numbered_api_version(base_path='/api'):
     import os
     import re
     api_path = os.path.abspath(base_path)
