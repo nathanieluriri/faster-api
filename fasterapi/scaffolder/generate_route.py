@@ -114,17 +114,7 @@ def create_route_file(name: str, version: str = None, base_dir: str = None) -> b
             return False
     
     # Dynamically import schema to verify models
-    try:
-        schema_module = importlib.import_module(f"schemas.{db_name}")
-        for model in [f"{class_name}Create", f"{class_name}Base", f"{class_name}Out", f"{class_name}Update"]:
-            if not hasattr(schema_module, model):
-                print(f"❌ Model {model} not found in {schema_path}")
-                return False
-        create_model = getattr(schema_module, f"{class_name}Create")
-        base_model = getattr(schema_module, f"{class_name}Base")
-    except ImportError as e:
-        print(f"❌ Failed to import schemas.{db_name}: {e}")
-        return False
+   
 
 
     # Generate route code
