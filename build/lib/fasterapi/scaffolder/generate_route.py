@@ -63,13 +63,49 @@ def create_route_file(name: str,version:str):
         print(f"❌ Service file {service_path} not found. Service needed to generate route for {db_name}")
         return
     class_name = "".join(part.capitalize() for part in db_name.split("_"))
-    route_code=route_code = f'''from fastapi import APIRouter, HTTPException, status  # , Depends
+    from pydantic import BaseModel
+    from inspect import signature
+
+    def get_extra_fields(create_model: BaseModel, base_model: BaseModel):
+        return list(set(create_model.model_fields.keys()) - set(base_model.model_fields.keys()))
+
+    def generate_dynamic_create_route(class_name: str, db_name: str):
+        create_model = eval(f"{class_name}Create")
+        base_model = eval(f"{class_name}Base")
+        extras = get_extra_fields(create_model, base_model)
+
+        if not extras:
+            return f'''
+    @router.post("/", response_model=APIResponse[{class_name}Out], status_code=status.HTTP_201_CREATED)
+    async def create_{db_name}(item: {class_name}Base):
+        payload = {class_name}Create(**item.model_dump())
+        created = await add_{db_name}({db_name}Data=payload)
+        return APIResponse(status_code=201, data=created, detail="Created successfully")
+    '''
+
+        # Construct path and param declarations
+        path_string = "/".join([f'{{{field}}}' for field in extras])
+        param_decls = "\n".join([
+            f'    {field}: str = Path(..., description="Path parameter: {field}")' for field in extras
+        ])
+        param_names = ", ".join([f"{field}={field}" for field in extras])
+
+        return f'''
+    @router.post("/{path_string}/", response_model=APIResponse[{class_name}Out], status_code=status.HTTP_201_CREATED)
+    async def create_{db_name}(item: {class_name}Base,{chr(10)}{param_decls}):
+        payload = {class_name}Create(**item.model_dump(), {param_names})
+        created = await add_{db_name}({db_name}Data=payload)
+        return APIResponse(status_code=201, data=created, detail="Created successfully")
+    '''
+
+
+    route_code = f'''from fastapi import APIRouter, HTTPException, Query, status
 from typing import List
 from schemas.response_schema import APIResponse
 from schemas.{db_name} import (
     {class_name}Create,
     {class_name}Out,
-    {class_name}BaseRequest,
+    {class_name}Base,
     {class_name}Update,
 )
 from services.{db_name}_service import (
@@ -80,10 +116,6 @@ from services.{db_name}_service import (
     update_{db_name},
 )
 
-# from services.user_service import get_user_details_with_accessToken
-# from services.admin_services import get_admin_details_with_accessToken_service
-# from security.auth import verify_any_token
-
 router = APIRouter(prefix="/{db_name}s", tags=["{class_name}s"])
 
 
@@ -93,55 +125,15 @@ async def list_{db_name}s():
     return APIResponse(status_code=200, data=items, detail="Fetched successfully")
 
 
-# @router.get("/me", response_model=APIResponse[List[{class_name}Out]], dependencies=[Depends(verify_any_token)])
-# async def get_my_{db_name}s(dep=Depends(verify_any_token)):
-#     user = await (
-#         get_admin_details_with_accessToken_service(dep["accessToken"])
-#         if dep["role"] == "admin"
-#         else get_user_details_with_accessToken(dep["accessToken"])
-#     )
-#     items = await retrieve_{db_name}s_by_user(userId=user.userId)
-#     return APIResponse(status_code=200, data=items, detail="User's items fetched")
-
 @router.get("/me", response_model=APIResponse[List[{class_name}Out]])
 async def get_my_{db_name}s(userId: str = Query(..., description="User ID to fetch user-specific items")):
     items = await retrieve_{db_name}s_by_user(userId=userId)
     return APIResponse(status_code=200, data=items, detail="User's items fetched")
-
-
-@router.post("/", response_model=APIResponse[{class_name}Out], status_code=status.HTTP_201_CREATED)
-async def create_{db_name}(item: {class_name}BaseRequest, userId: str = Query(...)):
-    payload = {class_name}Create(**item.model_dump(), userId=userId)  # , role=dep["role"]
-    created = await add_{db_name}({db_name}Data=payload)
-    return APIResponse(status_code=201, data=created, detail="Created successfully")
-
-
-# @router.post("/", response_model=APIResponse[{class_name}Out], status_code=status.HTTP_201_CREATED)
-# async def create_{db_name}(item: {class_name}BaseRequest):  # , dep=Depends(verify_any_token)
-    # user = await (
-    #     get_admin_details_with_accessToken_service(dep["accessToken"])
-    #     if dep["role"] == "admin"
-    #     else get_user_details_with_accessToken(dep["accessToken"])
-    # )
-    payload = {class_name}Create(**item.model_dump())  # , userId=user.userId, role=dep["role"]
-    created = await add_{db_name}({db_name}Data=payload)
-    return APIResponse(status_code=201, data=created, detail="Created successfully")
-
-
-@router.delete("/{{id}}", response_model=APIResponse[{class_name}Out])
-async def delete_{db_name}(id: str):
-    deleted = await remove_{db_name}({db_name}Id=id)
-    if deleted:
-        return APIResponse(status_code=200, data=deleted, detail="Deleted successfully")
-    raise HTTPException(status_code=404, detail="Resource not found")
-
-
-@router.patch("/{{id}}", response_model=APIResponse[{class_name}Out])
-async def update_{db_name}(id: str, update_data: {class_name}Update):
-    updated = await update_{db_name}({db_name}Id=id, data=update_data)
-    return APIResponse(status_code=200, data=updated, detail="Updated successfully")
 '''
+    dynamic_create_route = generate_dynamic_create_route(class_name, db_name)
+
 
     with open(route_path, "w") as f:
         f.write(route_code)
+        f.write(dynamic_create_route)
     print(f"✅ Route file created: api/{version}/{db_name}.py")
