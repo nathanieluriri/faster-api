@@ -143,9 +143,9 @@ async def list_{db_name}s():
     items = await retrieve_{db_name}s()
     return APIResponse(status_code=200, data=items, detail="Fetched successfully")
 
-@router.get("/me", response_model=APIResponse[List[{class_name}Out]])
+@router.get("/me", response_model=APIResponse[{class_name}Out])
 async def get_my_{db_name}s(id: str = Query(..., description="{db_name} ID to fetch specific item")):
-    items = await retrieve_{db_name}s_by_{class_name}(id=id)
+    items = await retrieve_{db_name}_by_{db_name}_id(id=id)
     return APIResponse(status_code=200, data=items, detail="{db_name}s items fetched")
 """ 
 
