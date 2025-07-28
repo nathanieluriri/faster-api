@@ -4,10 +4,11 @@ pyproject.toml
 setup.py
 fasterapi/__init__.py
 fasterapi/__version__.py
-fasterapi/cli.py
 fasterapi/scaffolder/__init__.py
+fasterapi/scaffolder/cli.py
 fasterapi/scaffolder/generate_crud.py
 fasterapi/scaffolder/generate_project.py
+fasterapi/scaffolder/generate_route.py
 fasterapi/scaffolder/generate_schema.py
 fasterapi/scaffolder/templates/project_template/.env.example
 fasterapi/scaffolder/templates/project_template/.gitignore
@@ -26,6 +27,7 @@ fasterapi/scaffolder/templates/project_template/repositories/__init__.py
 fasterapi/scaffolder/templates/project_template/repositories/tokens_repo.py
 fasterapi/scaffolder/templates/project_template/schemas/__init__.py
 fasterapi/scaffolder/templates/project_template/schemas/imports.py
+fasterapi/scaffolder/templates/project_template/schemas/response_schema.py
 fasterapi/scaffolder/templates/project_template/schemas/tokens_schema.py
 fasterapi/scaffolder/templates/project_template/security/__init__.py
 fasterapi/scaffolder/templates/project_template/security/auth.py
