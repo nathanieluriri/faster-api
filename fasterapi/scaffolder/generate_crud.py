@@ -19,6 +19,7 @@ def create_crud_file(name: str):
     crud_code = f'''
 from pymongo import ReturnDocument
 from core.database import db
+from fastapi import HTTPException,status
 from typing import List,Optional
 from schemas.{db_name} import {update_class_name}, {create_class_name}, {out_class_name}
 
@@ -28,18 +29,39 @@ async def create_{db_name}({db_name}_data: {create_class_name}) -> {out_class_na
     returnable_result = {out_class_name}(**result)
     return returnable_result
 
-async def get_{db_name}(filter_dict: dict) -> {out_class_name}:
-    result =await db.{db_name}s.find_one(filter_dict)
-    returnable_result = {out_class_name}(**result)
-    return returnable_result
+async def get_{db_name}(filter_dict: dict) -> Optional[{out_class_name}]:
+    try:
+        result = await db.{db_name}s.find_one(filter_dict)
+
+        if result is None:
+            return None
+
+        return {out_class_name}(**result)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred while fetching {db_name}: {{str(e)}}"
+        )
     
 async def get_{db_name}s(filter_dict: dict = {{}}) -> List[{out_class_name}]:
-    cursor = db.{db_name}s.find(filter_dict)
-    {db_name}s = []
-    async for doc in cursor:
-        {db_name}s.append({out_class_name}(**doc))
-    return {db_name}s
+    try:
+        if filter_dict is None:
+            filter_dict = {{}}
 
+        cursor = db.{db_name}s.find(filter_dict)
+        {db_name}_list = []
+
+        async for doc in cursor:
+            {db_name}_list.append({out_class_name}(**doc))
+
+        return {db_name}_list
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred while fetching {db_name}s: {{str(e)}}"
+        )
 async def update_{db_name}(filter_dict: dict, {db_name}_data: {update_class_name}) -> {out_class_name}:
     result = await db.{db_name}s.find_one_and_update(
         filter_dict,
