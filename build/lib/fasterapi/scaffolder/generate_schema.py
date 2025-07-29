@@ -52,7 +52,7 @@ class {class_name}Out({class_name}Base):
         values['id']= str(values.get('_id'))
         return values
     class Config:
-        orm_mode = True
+        from_attributes = True
         populate_by_name = True
         arbitrary_types_allowed = True
         json_encoders = {{
