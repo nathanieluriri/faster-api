@@ -190,17 +190,3 @@ async def activate_{safe_role_name}_access_token(token_id: str) -> accessTokenOu
         print(f"   Roles included: {', '.join(roles)}")
     except IOError as e:
         print(f"❌ Error writing to file: {e}")
-
-# --- Example Usage ---
-if __name__ == "__main__":
-    print("Running token repository generator...")
-    
-    # Define the roles for your application
-    # You can customize this list as needed
-    application_roles = ["admin", "staff", "user", "guest-editor"]
-    
-    # Generate the file
-    create_token_file(application_roles)
-    
-    print("\nGenerator finished.")
-
