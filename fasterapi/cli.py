@@ -6,6 +6,7 @@ from fasterapi.scaffolder.generate_service import create_service_file
 from fasterapi.scaffolder.generate_route import create_route_file,get_highest_numbered_api_version,get_latest_modified_api_version
 from fasterapi.__version__ import __version__
 from fasterapi.scaffolder.mount_routes import update_main_routes
+from fasterapi.scaffolder.generate_tokens_repo import create_token_file
 import subprocess
 
 @click.group()
@@ -77,6 +78,20 @@ def make_route(name,version_mode):
         
     print(f"Selected API version: {version}")
     create_route_file(name,version)
+    
+ 
+@cli.command()
+@click.argument("roles", nargs=-1)
+def make_token_repo(roles):
+    """Generates token repository based on roles (e.g., admin, user, staff). by default will generate for admin and user role always"""
+    if not roles:
+        # Default roles if none provided
+        roles = ["admin",  "user", ]
+        click.secho("⚠️ No roles provided. Using default roles: admin, staff, user, guest-editor", fg="yellow")
+
+    create_token_file(roles)
+    click.secho("✅ Token repository generated successfully!", fg="green")
+
 
 if __name__ == "__main__":
     cli()

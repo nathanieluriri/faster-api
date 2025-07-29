@@ -11,6 +11,7 @@ fasterapi/scaffolder/generate_project.py
 fasterapi/scaffolder/generate_route.py
 fasterapi/scaffolder/generate_schema.py
 fasterapi/scaffolder/generate_service.py
+fasterapi/scaffolder/generate_tokens_repo.py
 fasterapi/scaffolder/mount_routes.py
 fasterapi/scaffolder/templates/project_template/.env.example
 fasterapi/scaffolder/templates/project_template/.gitignore
