@@ -7,6 +7,7 @@ from fasterapi.scaffolder.generate_route import create_route_file,get_highest_nu
 from fasterapi.__version__ import __version__
 from fasterapi.scaffolder.mount_routes import update_main_routes
 from fasterapi.scaffolder.generate_tokens_repo import create_token_file
+from fasterapi.scaffolder.generate_dependencies import create_dependency_file
 import subprocess
 
 @click.group()
@@ -91,6 +92,12 @@ def make_token_repo(roles):
 
     create_token_file(roles)
     click.secho("✅ Token repository generated successfully!", fg="green")
+
+
+@cli.command()
+def make_token_deps():
+    """Generates the token dependency file from the repository."""
+    create_dependency_file()
 
 
 if __name__ == "__main__":
