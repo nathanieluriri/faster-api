@@ -1,5 +1,5 @@
 from pathlib import Path
-
+from datetime import datetime
 def create_service_file(name: str):
     db_name = name.lower()
     repo_module = f"repositories.{db_name}"
@@ -12,6 +12,14 @@ def create_service_file(name: str):
     out_class_name = f"{class_name}Out"
 
     service_code = f'''
+# ============================================================================
+# {db_name.upper()} SERVICE
+# ============================================================================
+# This file was auto-generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S WAT')}
+# It contains  asynchrounous functions that make use of the repo functions 
+# 
+# ============================================================================
+
 from bson import ObjectId
 from fastapi import HTTPException
 from typing import List

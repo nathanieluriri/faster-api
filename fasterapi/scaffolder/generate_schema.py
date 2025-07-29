@@ -1,6 +1,6 @@
 from pathlib import Path
 from datetime import datetime
-
+from datetime import datetime
 def create_schema_file(name: str):
     db_name=name.lower()
     schema_dir = Path.cwd() / "schemas"
@@ -15,6 +15,15 @@ def create_schema_file(name: str):
     class_name = "".join(part.capitalize() for part in db_name.split("_"))
 
     schema_code = f'''
+# ============================================================================
+#{db_name.upper()} SCHEMA 
+# ============================================================================
+# This file was auto-generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S WAT')}
+# It contains Pydantic classes  database
+# for managing attributes and validation of data in and out of the MongoDB database.
+#
+# ============================================================================
+
 from schemas.imports import *
 from pydantic import Field
 import time
