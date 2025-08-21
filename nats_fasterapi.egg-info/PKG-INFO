@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: nats-fasterapi
-Version: 0.2.56
+Version: 0.2.57
 Summary: A CLI tool to scaffold FastAPI projects with CRUD and schema support
 Home-page: https://github.com/nathanieluriri/faster-api
 Author: Nathaniel Uriri
@@ -12,14 +12,12 @@ Requires-Python: >=3.8
 Description-Content-Type: text/markdown
 License-File: LICENSE
 
-````markdown
 # ⚡ FasterAPI — Scaffold FastAPI Apps with Ease
 
 `nats-fasterapi` is a **CLI tool** that helps you scaffold and supercharge FastAPI projects.  
 
 It generates schemas, CRUD repositories, services, routes, and authentication utilities — so you can focus on building features instead of repetitive boilerplate. Think of it as a **FastAPI project generator + productivity booster 🚀**.  
 
----
 
 ## ✨ Features
 

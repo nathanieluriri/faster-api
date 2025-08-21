@@ -1,11 +1,9 @@
-````markdown
 # ⚡ FasterAPI — Scaffold FastAPI Apps with Ease
 
 `nats-fasterapi` is a **CLI tool** that helps you scaffold and supercharge FastAPI projects.  
 
 It generates schemas, CRUD repositories, services, routes, and authentication utilities — so you can focus on building features instead of repetitive boilerplate. Think of it as a **FastAPI project generator + productivity booster 🚀**.  
 
----
 
 ## ✨ Features
 
