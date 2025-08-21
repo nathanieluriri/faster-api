@@ -163,7 +163,7 @@ def send_invite_notification(invitee_email: str, inviter_email:str,):
     """Sends invite"""
     try:
         html_body = generate_invitation_email_from_template(
-            invitee_email=invitee_email,inviter_email=inviter_email,project_name="Aperture Security EPS Booking Admin Portal", register_link="https://admin.aperturesecure.com/"
+            invitee_email=invitee_email,inviter_email=inviter_email,project_name="", register_link=""
         )
 
         plain_text = f"""Hello, {invitee_email} you have been invited to use Aperture Security EPS Booking Admin Portal """
@@ -190,7 +190,7 @@ def send_revoke_notification(revoked_user_email: str, revoked_by_email:str,):
     """Sends revoke notification"""
     try:
         html_body = generate_revoke_invitation_email_from_template(
-            revoked_user_email=revoked_user_email,revoked_by_email=revoked_by_email,project_name="Aperture Security EPS Booking Admin Portal"
+            revoked_user_email=revoked_user_email,revoked_by_email=revoked_by_email,project_name=""
         )
 
         plain_text = f"""Hello, {revoked_user_email} your access has been revoked to use Aperture Security EPS Booking Admin Portal """
