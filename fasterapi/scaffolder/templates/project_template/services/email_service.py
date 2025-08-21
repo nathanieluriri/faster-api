@@ -6,6 +6,9 @@ from email.mime.text import MIMEText
 from email.utils import formataddr
 from dotenv import load_dotenv
 from email_templates.new_sign_in import generate_new_signin_warning_email_from_template
+from email_templates.otp_template import generate_login_otp_email_from_template
+from email_templates.invitation_template import generate_invitation_email_from_template
+from email_templates.revoking_template import generate_revoke_invitation_email_from_template
 
 # Load environment variables
 load_dotenv()
@@ -97,7 +100,7 @@ def send_html_email_optimized(
 # ------------------- Public Function -------------------
 
 def send_new_signin_email(receiver_email: str, firstName,lastName,time_data,ip_address,location,extra_data):
-    """Sends an OTP email for password change."""
+    """Sends an automated response regarding a new signin."""
     try:
         html_body = generate_new_signin_warning_email_from_template(
             firstName,lastName,time_data,ip_address,location,extra_data
@@ -110,9 +113,9 @@ This is an automated message sent to tell {firstName} that there was a new sign 
 
         send_html_email_optimized(
             sender_email=EMAIL_USERNAME,
-            sender_display_name="NAT FROM HOSPITAL",
+            sender_display_name="Aperture Security",
             receiver_email=receiver_email,
-            subject="Reset Your Password",
+            subject="new sign in",
             html_content=html_body,
             plain_text_content=plain_text,
             smtp_server=EMAIL_HOST,
@@ -123,4 +126,88 @@ This is an automated message sent to tell {firstName} that there was a new sign 
 
     except Exception as e:
         logger.error(f"Failed to send OTP email to {receiver_email}: {e}")
+        return 1
+
+
+
+def send_otp(otp: str, user_email:str,):
+    """Sends otp"""
+    try:
+        html_body = generate_login_otp_email_from_template(
+            otp_code=otp,user_email=user_email
+        )
+
+        plain_text = f"""Hello, {user_email} use {otp} to login  """
+
+        send_html_email_optimized(
+            sender_email=EMAIL_USERNAME,
+            sender_display_name="Aperture Security",
+            receiver_email=user_email,
+            subject="OTP",
+            html_content=html_body,
+            plain_text_content=plain_text,
+            smtp_server=EMAIL_HOST,
+            smtp_port=EMAIL_PORT,
+            smtp_login=EMAIL_USERNAME,
+            smtp_password=EMAIL_PASSWORD
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to send OTP email to {user_email}: {e}")
+        return 1
+
+
+
+
+def send_invite_notification(invitee_email: str, inviter_email:str,):
+    """Sends invite"""
+    try:
+        html_body = generate_invitation_email_from_template(
+            invitee_email=invitee_email,inviter_email=inviter_email,project_name="Aperture Security EPS Booking Admin Portal", register_link="https://admin.aperturesecure.com/"
+        )
+
+        plain_text = f"""Hello, {invitee_email} you have been invited to use Aperture Security EPS Booking Admin Portal """
+
+        send_html_email_optimized(
+            sender_email=EMAIL_USERNAME,
+            sender_display_name="Aperture Security",
+            receiver_email=invitee_email,
+            subject="Admin App Invitation",
+            html_content=html_body,
+            plain_text_content=plain_text,
+            smtp_server=EMAIL_HOST,
+            smtp_port=EMAIL_PORT,
+            smtp_login=EMAIL_USERNAME,
+            smtp_password=EMAIL_PASSWORD
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to send invitation email to {invitee_email}: {e}")
+        return 1
+
+
+def send_revoke_notification(revoked_user_email: str, revoked_by_email:str,):
+    """Sends revoke notification"""
+    try:
+        html_body = generate_revoke_invitation_email_from_template(
+            revoked_user_email=revoked_user_email,revoked_by_email=revoked_by_email,project_name="Aperture Security EPS Booking Admin Portal"
+        )
+
+        plain_text = f"""Hello, {revoked_user_email} your access has been revoked to use Aperture Security EPS Booking Admin Portal """
+
+        send_html_email_optimized(
+            sender_email=EMAIL_USERNAME,
+            sender_display_name="Aperture Security",
+            receiver_email=revoked_user_email,
+            subject="Admin App Invitation Revoked",
+            html_content=html_body,
+            plain_text_content=plain_text,
+            smtp_server=EMAIL_HOST,
+            smtp_port=EMAIL_PORT,
+            smtp_login=EMAIL_USERNAME,
+            smtp_password=EMAIL_PASSWORD
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to send notification email to {revoked_user_email}: {e}")
         return 1

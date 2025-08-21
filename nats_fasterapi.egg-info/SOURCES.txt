@@ -26,8 +26,13 @@ fasterapi/scaffolder/templates/project_template/api/__init__.py
 fasterapi/scaffolder/templates/project_template/api/v1/__init__.py
 fasterapi/scaffolder/templates/project_template/core/__init__.py
 fasterapi/scaffolder/templates/project_template/core/database.py
+fasterapi/scaffolder/templates/project_template/core/redis_cache.py
 fasterapi/scaffolder/templates/project_template/email_templates/__init__.py
+fasterapi/scaffolder/templates/project_template/email_templates/changing_password_template.py
+fasterapi/scaffolder/templates/project_template/email_templates/invitation_template.py
 fasterapi/scaffolder/templates/project_template/email_templates/new_sign_in.py
+fasterapi/scaffolder/templates/project_template/email_templates/otp_template.py
+fasterapi/scaffolder/templates/project_template/email_templates/revoking_template.py
 fasterapi/scaffolder/templates/project_template/repositories/__init__.py
 fasterapi/scaffolder/templates/project_template/repositories/tokens_repo.py
 fasterapi/scaffolder/templates/project_template/schemas/__init__.py

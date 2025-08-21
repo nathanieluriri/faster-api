@@ -289,6 +289,45 @@ def make_token_deps():
         click.secho(f"❌ Failed to generate token dependencies: {e}", fg="red")
         raise click.Abort()
 
+@cli.command(name="git-push-auto")
+def git_push_auto():
+    """
+    Automates a three-step Git workflow: add, commit, and push.
+
+    \b
+    ✅ Good usage:
+        fasterapi git-push-auto
+
+    ❌ Bad usage:
+        fasterapi git-push-auto extra    # This command takes no arguments
+
+    Notes:
+        - This is equivalent to running:
+            git add .
+            git commit -m "automated commit"
+            git push origin master
+    """
+    try:
+        click.secho("Adding all changes...", fg="cyan")
+        subprocess.run(["git", "add", "."], check=True)
+
+        click.secho("Committing with message 'automated commit'...", fg="cyan")
+        subprocess.run(["git", "commit", "-m", "automated commit"], check=True)
+
+        click.secho("Pushing to origin master...", fg="cyan")
+        subprocess.run(["git", "push", "origin", "master"], check=True)
+
+        click.secho("✅ Git workflow completed successfully!", fg="green")
+
+    except FileNotFoundError:
+        click.secho("❌ Git is not installed or not in your PATH. Please install Git and try again.", fg="red")
+        raise click.Abort()
+
+    except subprocess.CalledProcessError as e:
+        click.secho(f"❌ Failed to complete Git workflow: {e}", fg="red")
+        click.secho("A Git command failed. Please check your repository status and try the commands manually.", fg="red")
+        raise click.Abort()
+
 
 
 if __name__ == "__main__":
