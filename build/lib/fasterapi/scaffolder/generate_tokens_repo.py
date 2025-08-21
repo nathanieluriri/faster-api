@@ -170,6 +170,18 @@ async def activate_{safe_role_name}_access_token(token_id: str) -> accessTokenOu
         raise HTTPException(status_code=404, detail="{safe_role_name.capitalize()} token not found or role mismatch.")
         
     return accessTokenOut(**updated_token)
+    
+async def delete_access_token(token_id: str) -> bool:
+    \"\"\"
+    Deletes an access token by its ID. Returns True if deletion was successful.
+    This is role-agnostic and only depends on a valid token ID.
+    \"\"\"
+    try:
+        obj_id = ObjectId(token_id)
+        result = await db.accessToken.delete_one({"_id": obj_id})
+        return result.deleted_count > 0
+    except errors.InvalidId:
+        return False
 """
         role_specific_functions.append(add_func)
         role_specific_functions.append(activate_func)

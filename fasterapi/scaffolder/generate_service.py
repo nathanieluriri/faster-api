@@ -35,10 +35,21 @@ from {schema_module} import {create_class_name}, {update_class_name}, {out_class
 
 
 async def add_{db_name}({db_name}_data: {create_class_name}) -> {out_class_name}:
+    """adds an entry of {create_class_name} to the database and returns an object
+
+    Returns:
+        _type_: {out_class_name}
+    """
     return await create_{db_name}({db_name}_data)
 
 
 async def remove_{db_name}({db_name}_id: str):
+    """deletes a field from the database and removes {create_class_name}object 
+
+    Raises:
+        HTTPException 400: Invalid {db_name} ID format
+        HTTPException 404:  {class_name} not found
+    """
     if not ObjectId.is_valid({db_name}_id):
         raise HTTPException(status_code=400, detail="Invalid {db_name} ID format")
 
@@ -49,7 +60,16 @@ async def remove_{db_name}({db_name}_id: str):
         raise HTTPException(status_code=404, detail="{class_name} not found")
 
 
-async def retrieve_{db_name}_by_{db_name}_id({db_name}_id: str) -> {out_class_name}:
+async def retrieve_{db_name}_by_{db_name}_id(id: str) -> {out_class_name}:
+    """Retrieves {db_name} object based specific Id 
+
+    Raises:
+        HTTPException 404(not found): if  {class_name} not found in the db
+        HTTPException 400(bad request): if  Invalid {db_name} ID format
+
+    Returns:
+        _type_: {out_class_name}
+    """
     if not ObjectId.is_valid({db_name}_id):
         raise HTTPException(status_code=400, detail="Invalid {db_name} ID format")
 
@@ -63,10 +83,24 @@ async def retrieve_{db_name}_by_{db_name}_id({db_name}_id: str) -> {out_class_na
 
 
 async def retrieve_{db_name}s() -> List[{out_class_name}]:
+    """Retrieves {out_class_name} Objects in a list
+
+    Returns:
+        _type_: {out_class_name}
+    """
     return await get_{db_name}s()
 
 
 async def update_{db_name}_by_id({db_name}_id: str, {db_name}_data: {update_class_name}) -> {out_class_name}:
+    """_summary_
+
+    Raises:
+        HTTPException 404(not found): if {class_name} not found or update failed
+        HTTPException 400(not found): Invalid {db_name} ID format
+
+    Returns:
+        _type_: {out_class_name}
+    """
     if not ObjectId.is_valid({db_name}_id):
         raise HTTPException(status_code=400, detail="Invalid {db_name} ID format")
 
