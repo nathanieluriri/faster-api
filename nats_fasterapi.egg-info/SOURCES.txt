@@ -1,5 +1,6 @@
 LICENSE
 MANIFEST.in
+README.md
 pyproject.toml
 setup.py
 fasterapi/__init__.py

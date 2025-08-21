@@ -1,17 +1,3 @@
-Metadata-Version: 2.1
-Name: nats-fasterapi
-Version: 0.2.56
-Summary: A CLI tool to scaffold FastAPI projects with CRUD and schema support
-Home-page: https://github.com/nathanieluriri/faster-api
-Author: Nathaniel Uriri
-Author-email: nat@uriri.com.ng
-Classifier: Programming Language :: Python :: 3.8
-Classifier: License :: OSI Approved :: MIT License
-Classifier: Operating System :: OS Independent
-Requires-Python: >=3.8
-Description-Content-Type: text/markdown
-License-File: LICENSE
-
 ````markdown
 # ⚡ FasterAPI — Scaffold FastAPI Apps with Ease
 
