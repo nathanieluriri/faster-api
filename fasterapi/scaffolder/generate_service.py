@@ -70,10 +70,10 @@ async def retrieve_{db_name}_by_{db_name}_id(id: str) -> {out_class_name}:
     Returns:
         _type_: {out_class_name}
     """
-    if not ObjectId.is_valid({db_name}_id):
+    if not ObjectId.is_valid(id):
         raise HTTPException(status_code=400, detail="Invalid {db_name} ID format")
 
-    filter_dict = {{"_id": ObjectId({db_name}_id)}}
+    filter_dict = {{"_id": ObjectId(id)}}
     result = await get_{db_name}(filter_dict)
 
     if not result:
