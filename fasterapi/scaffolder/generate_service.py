@@ -82,13 +82,13 @@ async def retrieve_{db_name}_by_{db_name}_id(id: str) -> {out_class_name}:
     return result
 
 
-async def retrieve_{db_name}s() -> List[{out_class_name}]:
+async def retrieve_{db_name}s(start=0,stop=100) -> List[{out_class_name}]:
     """Retrieves {out_class_name} Objects in a list
 
     Returns:
         _type_: {out_class_name}
     """
-    return await get_{db_name}s()
+    return await get_{db_name}s(start=start,stop=stop)
 
 
 async def update_{db_name}_by_id({db_name}_id: str, {db_name}_data: {update_class_name}) -> {out_class_name}:

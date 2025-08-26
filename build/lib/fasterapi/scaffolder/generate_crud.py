@@ -56,12 +56,15 @@ async def get_{db_name}(filter_dict: dict) -> Optional[{out_class_name}]:
             detail=f"An error occurred while fetching {db_name}: {{str(e)}}"
         )
     
-async def get_{db_name}s(filter_dict: dict = {{}}) -> List[{out_class_name}]:
+async def get_{db_name}s(filter_dict: dict = {{}},start=0,stop=100) -> List[{out_class_name}]:
     try:
         if filter_dict is None:
             filter_dict = {{}}
 
-        cursor = db.{db_name}s.find(filter_dict)
+        cursor = (db.{db_name}s.find(filter_dict)
+        .skip(start)
+        .limit(stop - start)
+        )
         {db_name}_list = []
 
         async for doc in cursor:
