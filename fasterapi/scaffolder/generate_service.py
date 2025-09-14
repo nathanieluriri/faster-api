@@ -92,7 +92,7 @@ async def retrieve_{db_name}s(start=0,stop=100) -> List[{out_class_name}]:
 
 
 async def update_{db_name}_by_id({db_name}_id: str, {db_name}_data: {update_class_name}) -> {out_class_name}:
-    """_summary_
+    """updates an entry of {db_name} in the database
 
     Raises:
         HTTPException 404(not found): if {class_name} not found or update failed

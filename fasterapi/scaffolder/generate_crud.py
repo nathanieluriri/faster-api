@@ -80,7 +80,7 @@ async def get_{db_name}s(filter_dict: dict = {{}},start=0,stop=100) -> List[{out
 async def update_{db_name}(filter_dict: dict, {db_name}_data: {update_class_name}) -> {out_class_name}:
     result = await db.{db_name}s.find_one_and_update(
         filter_dict,
-        {{"$set": {db_name}_data.model_dump()}},
+        {{"$set": {db_name}_data.model_dump(exclude_none=True)}},
         return_document=ReturnDocument.AFTER
     )
     returnable_result = {out_class_name}(**result)

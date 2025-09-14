@@ -2,7 +2,7 @@ from core.database import db
 
 from schemas.tokens_schema import accessTokenCreate,refreshTokenCreate,accessTokenOut,refreshTokenOut
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from dateutil import parser
 from bson import ObjectId,errors
 from fastapi import HTTPException
@@ -55,23 +55,31 @@ async def delete_refresh_token(refreshToken:str):
 
 
 
-def is_older_than_days(date_string, days=10):
-    # Parse the ISO 8601 date string into a datetime object
-    created_date = parser.isoparse(date_string)
+def is_older_than_days(date_value, days=10):
+    """
+    Accepts either an ISO-8601 string or a UNIX timestamp (int/float).
+    Returns True if older than `days` days.
+    """
+    # Determine type and parse accordingly
+    if isinstance(date_value, (int, float)):
+        # It's a UNIX timestamp (seconds)
+        created_date = datetime.fromtimestamp(date_value, tz=timezone.utc)
+    else:
+        # Assume ISO string
+        created_date = parser.isoparse(str(date_value))
 
-    # Get the current time in UTC
-    now = datetime.utcnow().replace(tzinfo=created_date.tzinfo)
+    # Get the current time in UTC (with same tzinfo)
+    now = datetime.now(timezone.utc)
 
     # Check if the difference is greater than the given number of days
     return (now - created_date) > timedelta(days=days)
 
 
-
-async def get_access_tokens(accessToken:str):
+async def get_access_tokens(accessToken:str)->accessTokenOut:
     
     token = await db.accessToken.find_one({"_id": ObjectId(accessToken)})
     if token:
-        if is_older_than_days(date_string=token['dateCreated'])==False:
+        if is_older_than_days(date_value=token['dateCreated'])==False:
             if token.get("role",None)=="member":
                 tokn = accessTokenOut(**token)
                 return tokn
@@ -92,7 +100,32 @@ async def get_access_tokens(accessToken:str):
         return "None"
     
     
-async def get_refresh_tokens(refreshToken:str):
+    
+
+
+async def get_access_tokens_no_date_check(accessToken:str)->accessTokenOut:
+    
+    token = await db.accessToken.find_one({"_id": ObjectId(accessToken)})
+    if token:
+        if token.get("role",None)=="member":
+            tokn = accessTokenOut(**token)
+            return tokn
+        elif token.get("role",None)=="admin":
+            if token.get('status',None)=="active":
+                tokn = accessTokenOut(**token)
+                return tokn
+            else: 
+                return None
+        else:
+            return None
+        
+    
+    else:
+        print("No token found")
+        return None
+
+    
+async def get_refresh_tokens(refreshToken:str)->refreshTokenOut:
     token = await db.refreshToken.find_one({"_id": ObjectId(refreshToken)})
     if token:
         tokn = refreshTokenOut(**token)

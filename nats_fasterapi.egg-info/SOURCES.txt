@@ -24,6 +24,7 @@ fasterapi/scaffolder/templates/project_template/requirements.txt
 fasterapi/scaffolder/templates/project_template/seed.py
 fasterapi/scaffolder/templates/project_template/api/__init__.py
 fasterapi/scaffolder/templates/project_template/api/v1/__init__.py
+fasterapi/scaffolder/templates/project_template/api/v1/user_route.py
 fasterapi/scaffolder/templates/project_template/core/__init__.py
 fasterapi/scaffolder/templates/project_template/core/database.py
 fasterapi/scaffolder/templates/project_template/core/redis_cache.py
@@ -35,10 +36,12 @@ fasterapi/scaffolder/templates/project_template/email_templates/otp_template.py
 fasterapi/scaffolder/templates/project_template/email_templates/revoking_template.py
 fasterapi/scaffolder/templates/project_template/repositories/__init__.py
 fasterapi/scaffolder/templates/project_template/repositories/tokens_repo.py
+fasterapi/scaffolder/templates/project_template/repositories/user_repo.py
 fasterapi/scaffolder/templates/project_template/schemas/__init__.py
 fasterapi/scaffolder/templates/project_template/schemas/imports.py
 fasterapi/scaffolder/templates/project_template/schemas/response_schema.py
 fasterapi/scaffolder/templates/project_template/schemas/tokens_schema.py
+fasterapi/scaffolder/templates/project_template/schemas/user_schema.py
 fasterapi/scaffolder/templates/project_template/security/__init__.py
 fasterapi/scaffolder/templates/project_template/security/auth.py
 fasterapi/scaffolder/templates/project_template/security/encrypting_jwt.py
@@ -46,6 +49,7 @@ fasterapi/scaffolder/templates/project_template/security/hash.py
 fasterapi/scaffolder/templates/project_template/security/tokens.py
 fasterapi/scaffolder/templates/project_template/services/__init__.py
 fasterapi/scaffolder/templates/project_template/services/email_service.py
+fasterapi/scaffolder/templates/project_template/services/user_service.py
 nats_fasterapi.egg-info/PKG-INFO
 nats_fasterapi.egg-info/SOURCES.txt
 nats_fasterapi.egg-info/dependency_links.txt
