@@ -29,6 +29,7 @@ setup(
         "bcrypt",
         "pyjwt",
         "python-dotenv",
+        "limits",
     ],
 
     entry_points={
