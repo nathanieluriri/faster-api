@@ -9,21 +9,41 @@ from limits.errors import RateLimitExceeded
 from schemas.response_schema import APIResponse
 import time   
 
+# TODO: Modify this if you want to use the time it took for a request to be completed in anyway like maybe calculating the average speed of each individual endpoint
+class RequestTimingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        # Record the start time before processing the request
+        start_time = time.time()
+        
+        # Process the request and get the response
+        response = await call_next(request)
+        
+        # Calculate the time taken to process the request
+        process_time = time.time() - start_time
+        
+        # You can log the time or set it in the response headers
+        response.headers['X-Process-Time'] = str(process_time)
+        
+        # Optionally, print it for logging purposes
+        print(f"Request to {request.url} took {process_time:.6f} seconds")
+        
+        return response
+    
 # Create the FastAPI app
 app = FastAPI()
-
+app.add_middleware(RequestTimingMiddleware)
 # Setup limiter
 storage = MemoryStorage()
 limiter = Limiter(storage)
 
-# Define rate limits per user type Change the logic here to be more dynamic or not
+# TODO: Define rate limits per user type Change the logic here to be more dynamic or not
 RATE_LIMITS = {
     "free": RateLimitItemPerMinute(5),
     "premium": RateLimitItemPerMinute(20),
     "admin": RateLimitItemPerMinute(100),
 }
 
-# Dummy user resolution function (replace with function to actually get user from the request object)
+# TODO: Dummy user resolution function (replace with function to actually get user from the request object)
 def get_user_type(request: Request) -> tuple[str, str]:
     """
     Return a tuple of (user_identifier, user_type)
@@ -62,6 +82,7 @@ class RateLimitingMiddleware(BaseHTTPMiddleware):
                     detail="Too Many Requests"
                 ).dict()
             )
+            
 
 # Add the middleware to the app
 # ||||||||||||||||||||||||||||||||||||
