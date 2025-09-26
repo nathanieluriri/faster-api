@@ -138,3 +138,6 @@ async def get_refresh_tokens(refreshToken:str)->refreshTokenOut:
 async def delete_all_tokens_with_user_id(userId:str):
     await db.refreshToken.delete_many(filter={"userId":userId})
     await db.accessToken.delete_many(filter={"userId":userId})
+    
+    
+

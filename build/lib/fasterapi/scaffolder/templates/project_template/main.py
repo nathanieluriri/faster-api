@@ -3,13 +3,17 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
-from limits import Limiter, RateLimitItemPerMinute
-from limits.storage import MemoryStorage
-from limits.errors import RateLimitExceeded
+from limits.strategies import FixedWindowRateLimiter
+from limits.storage import RedisStorage
+import math
 from schemas.response_schema import APIResponse
+from repositories.tokens_repo import get_access_tokens_no_date_check
+from limits import parse
 import time   
 
-# TODO: Modify this if you want to use the time it took for a request to be completed in anyway like maybe calculating the average speed of each individual endpoint
+
+
+
 class RequestTimingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         # Record the start time before processing the request
@@ -29,65 +33,100 @@ class RequestTimingMiddleware(BaseHTTPMiddleware):
         
         return response
     
+    
+    
+
+ 
+
+    
 # Create the FastAPI app
 app = FastAPI()
 app.add_middleware(RequestTimingMiddleware)
 # Setup limiter
-storage = MemoryStorage()
-limiter = Limiter(storage)
+storage = RedisStorage(
+    "redis://localhost:6379/0"
+)
 
-# TODO: Define rate limits per user type Change the logic here to be more dynamic or not
+limiter = FixedWindowRateLimiter(storage)
+
 RATE_LIMITS = {
-    "free": RateLimitItemPerMinute(5),
-    "premium": RateLimitItemPerMinute(20),
-    "admin": RateLimitItemPerMinute(100),
+    "annonymous": parse("20/minute"),
+    "member": parse("60/minute"),
+    "admin": parse("140/minute"),
 }
 
-# TODO: Dummy user resolution function (replace with function to actually get user from the request object)
-def get_user_type(request: Request) -> tuple[str, str]:
+async def get_user_type(request: Request) -> tuple[str, str]:
     """
     Return a tuple of (user_identifier, user_type)
     You can extract from JWT, headers, or session.
     """
-    user_id = request.headers.get("X-User-ID", "anonymous")
-    user_type = request.headers.get("X-User-Type", "free").lower()
-    return user_id, user_type if user_type in RATE_LIMITS else "free"
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        ip_address = request.headers.get("X-Forwarded-For", request.client.host)
+        user_id = ip_address
+        user_type="annonymous"
+        return user_id, user_type if user_type in RATE_LIMITS else "annonymous"
+    
+    
+    token = auth_header.split(" ")[1] 
+    access_token  =await get_access_tokens_no_date_check(accessToken=token)
+    
+    user_id = access_token.userId
+    
+    user_type = access_token.role
+
+ 
+    return user_id, user_type if user_type in RATE_LIMITS else "annonymous"
 
 class RateLimitingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        user_id, user_type = get_user_type(request)
+        user_id, user_type = await get_user_type(request)
         rate_limit_rule = RATE_LIMITS[user_type]
 
-        try:
-            # Use user_id as the rate limit key
-            limiter.hit(rate_limit_rule, user_id)
+        # hit() → True if still under limit
+        allowed = limiter.hit(rate_limit_rule, user_id)
 
-            response = await call_next(request)
-            return response
+        # Get current window stats (reset_time, remaining)
+        reset_time, remaining = limiter.get_window_stats(rate_limit_rule, user_id)
+        seconds_until_reset = max(math.ceil(reset_time - time.time()), 0)
 
-        except RateLimitExceeded:
-            # Get time until the limit resets
-            _, reset_time = limiter.get_window_stats(rate_limit_rule, user_id)
-            current_time = int(time.time())
-            seconds_until_reset = max(reset_time - current_time, 0)
-
+        if not allowed:
             return JSONResponse(
                 status_code=429,
+                headers={
+                    "X-User-Type": user_type,
+                    "X-User-Id":user_id,
+                    "X-RateLimit-Limit": str(rate_limit_rule.amount),
+                    "X-RateLimit-Remaining": str(max(remaining, 0)),
+                    "X-RateLimit-Reset": str(seconds_until_reset),
+                    "Retry-After": str(seconds_until_reset),
+                },
                 content=APIResponse(
                     status_code=429,
                     data={
                         "retry_after_seconds": seconds_until_reset,
-                        "user_type": user_type
+                        "user_type": user_type,
                     },
-                    detail="Too Many Requests"
-                ).dict()
+                    detail="Too Many Requests",
+                ).dict(),
             )
-            
+
+        # Normal flow
+        response = await call_next(request)
+
+        # Add rate-limit headers for successful requests too
+        response.headers["X-User-Id"]=user_id
+        response.headers["X-User-Type"] = user_type
+        response.headers["X-RateLimit-Limit"] = str(rate_limit_rule.amount)
+        response.headers["X-RateLimit-Remaining"] = str(max(remaining, 0))
+        response.headers["X-RateLimit-Reset"] = str(seconds_until_reset)
+
+        return response
 
 # Add the middleware to the app
 # ||||||||||||||||||||||||||||||||||||
 
-# app.add_middleware(RateLimitingMiddleware)
+app.add_middleware(RateLimitingMiddleware)
 
 # ||||||||||||||||||||||||||||||||||||
 
