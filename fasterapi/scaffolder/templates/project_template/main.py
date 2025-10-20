@@ -4,15 +4,28 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from limits.strategies import FixedWindowRateLimiter
+from datetime import datetime,timedelta
 from limits.storage import RedisStorage
 import math
 from schemas.response_schema import APIResponse
 from repositories.tokens_repo import get_access_tokens_no_date_check
 from limits import parse
 import time   
+import os
+from celery_worker import celery_app
+from contextlib import asynccontextmanager
+from core.scheduler import scheduler
 
 
 
+@asynccontextmanager
+async def lifespan(app:FastAPI):
+    scheduler.start()
+    try:
+        yield
+    finally:
+        scheduler.shutdown()
+    
 
 class RequestTimingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
@@ -40,7 +53,10 @@ class RequestTimingMiddleware(BaseHTTPMiddleware):
 
     
 # Create the FastAPI app
-app = FastAPI()
+app = FastAPI(
+    lifespan= lifespan,
+    title="REST API",
+)
 app.add_middleware(RequestTimingMiddleware)
 # Setup limiter
 storage = RedisStorage(
@@ -151,9 +167,20 @@ async def custom_http_exception_handler(request: Request, exc: HTTPException):
         ).dict()
     )
 
+async def test_scheduler(message):
+    print(message)
 # Simple test route
+
+@app.get("/test-celery")
+async def test_celery():
+    result = celery_app.send_task("celery_worker.test_scheduler", args=["Messageeee"])
+    return {"task_id": result.id}
+   
 @app.get("/")
 def read_root():
+    run_time = datetime.now() + timedelta(seconds=20)
+    scheduler.add_job(test_scheduler,"date",run_date=run_time,args=[f"test message {run_time}"],misfire_grace_time=31536000)
+    
     return {"message": "Hello from FasterAPI!"}
 
 # Health check route

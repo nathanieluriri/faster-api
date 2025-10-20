@@ -133,7 +133,7 @@ from services.{db_name}_service import (
     remove_{db_name},
     retrieve_{db_name}s,
     retrieve_{db_name}_by_{db_name}_id,
-    update_{db_name},
+    update_{db_name}_by_id,
 )
 
 router = APIRouter(prefix="/{db_name}s", tags=["{class_name}s"])

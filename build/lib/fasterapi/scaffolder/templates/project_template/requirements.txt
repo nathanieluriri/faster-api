@@ -7,6 +7,8 @@ python-dotenv
 pydantic
 redis
 motor
+flower
+eventlet
 PyJWT==2.10.1
 pymongo==4.12.0
 python-dotenv==1.1.0
@@ -19,3 +21,5 @@ typer==0.15.2
 typing-inspection==0.4.0
 typing_extensions==4.13.2
 limits
+bcrypt
+APScheduler==3.11.0
