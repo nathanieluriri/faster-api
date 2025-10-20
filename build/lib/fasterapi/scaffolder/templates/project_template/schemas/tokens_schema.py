@@ -20,11 +20,15 @@ class accessTokenCreate(accessTokenBase):
 class accessTokenOut(accessTokenBase):
     dateCreated: int = Field(default_factory=lambda: int(time.time()))
     accesstoken: Optional[str] =None
+    role:Optional[str]="annonymous"
     @model_validator(mode='before')
     def set_values(cls,values):
         if values is None:
             values = {}
         values['accesstoken']= str(values.get('_id'))
+        admin_token = values.get("accessToken",None)
+        if admin_token:
+            values['accesstoken']=values.get("accessToken")
         return values
     
     model_config = {

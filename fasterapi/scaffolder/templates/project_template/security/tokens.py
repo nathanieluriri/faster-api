@@ -32,7 +32,7 @@ async def generate_admin_access_tokens(userId)->accessTokenOut:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid User Id")    # or raise an error / log it    
 
     new_access_token = await add_admin_access_tokens(token_data=accessTokenCreate(userId=userId))
-    new_access_token.accesstoken = await create_jwt_admin_token(token=new_access_token.accesstoken)
+    new_access_token.accesstoken = await create_jwt_admin_token(token=new_access_token.accesstoken,userId=userId)
     return new_access_token
     
     
@@ -129,8 +129,8 @@ async def validate_admin_accesstoken_otp(accessToken:str):
         return None 
     
 async def validate_admin_accesstoken(accessToken:str):
-    from repositories.tokens_repo import get_access_token
-
+     
+    from repositories.tokens_repo import get_admin_access_tokens
     decodedAccessToken = await decode_jwt_token(token=accessToken)
     print(decodedAccessToken)
     try:
@@ -144,7 +144,7 @@ async def validate_admin_accesstoken(accessToken:str):
        
         if decodedAccessToken['role']=="admin":
            
-            validatedAccessToken= await get_access_token(token_id=decodedAccessToken['accessToken'])
+            validatedAccessToken= await get_admin_access_tokens(token_id=decodedAccessToken['accessToken'])
             print(validatedAccessToken)
             if type(validatedAccessToken) == type(accessTokenOut(userId="12",accesstoken="sa")):
                 return validatedAccessToken
@@ -161,7 +161,7 @@ async def validate_admin_accesstoken(accessToken:str):
     
     
 async def validate_expired_admin_accesstoken(accessToken:str):
-    from repositories.tokens_repo import get_access_token
+    from repositories.tokens_repo import get_admin_access_tokens
 
     decodedAccessToken = await decode_jwt_token_without_expiration(token=accessToken)
     try:
@@ -172,7 +172,7 @@ async def validate_expired_admin_accesstoken(accessToken:str):
     
     if decodedAccessToken:
         if decodedAccessToken['role']=="admin":
-            validatedAccessToken= await get_access_token(accessToken=decodedAccessToken['accessToken'])
+            validatedAccessToken= await get_admin_access_tokens(accessToken=decodedAccessToken['accessToken'])
             if type(validatedAccessToken) == type(accessTokenOut(userId="12",accesstoken="sa")):
                 return validatedAccessToken
             elif validatedAccessToken=="None":

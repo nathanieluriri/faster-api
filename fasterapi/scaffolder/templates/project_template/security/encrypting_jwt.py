@@ -9,7 +9,7 @@ from bson import ObjectId
 
 load_dotenv()
 SECRETID = os.getenv("SECRETID")
-
+SECRET_KEY = "your-secret-key"
 
 async def get_secret_dict()->dict:
     result =await db.secret_keys.find_one({"_id":ObjectId(SECRETID)})
@@ -53,84 +53,79 @@ async def create_jwt_member_token(token):
 
     return token
 
-async def create_jwt_admin_token(token):
-    secrets = await get_secret_and_header()
-    SECRET_KEYS= secrets['SECRET_KEY']
-    headers= secrets['HEADERS']
-    
+async def create_jwt_admin_token(token: str,userId:str):
     payload = {
-        'accessToken': token,
-        'role':'admin',
-        'exp': datetime.datetime.now(timezone.utc) + datetime.timedelta(minutes=15)
+        "accessToken": token,
+        "role": "admin",
+        "userId":userId,
+        "exp": datetime.datetime.now(timezone.utc) + datetime.timedelta(minutes=15)
     }
 
-    
-    token = jwt.encode(payload, SECRET_KEYS[headers['kid']], algorithm='HS256', headers=headers)
-
-    return token
+    encoded_jwt = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+    return encoded_jwt
 
 
 
-async def decode_jwt_token(token):
-    """_summary_
+async def decode_jwt_token(token: str):
+    """
+    Decodes and verifies a JWT token.
 
     Args:
-        token (_type_): _description_
-
-    Raises:
-        Exception: _description_
+        token (str): Encoded JWT token.
 
     Returns:
-        if decoded true: {'accessToken': '682c99f395ff4782fbea010f', 'role': 'admin', 'exp': 1747825460}
+        dict | None: Decoded payload if valid, or None if invalid/expired.
+
+    Example:
+        {'accessToken': '682c99f395ff4782fbea010f', 'role': 'admin', 'exp': 1747825460}
     """
-    SECRET_KEYS = await get_secret_dict()
-    # Decode header to extract the `kid`
-    unverified_header = jwt.get_unverified_header(token)
-    kid = unverified_header['kid']
 
-    # Look up the correct key
-    key = SECRET_KEYS.get(kid)
-
-    if not key:
-        raise Exception("Unknown key ID")
-
-    # Now decode and verify
     try:
-        decoded = jwt.decode(token, key, algorithms=['HS256'])
+        # Decode and verify
+        decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
         return decoded
-    except jwt.exceptions.ExpiredSignatureError:
-        print("expired token")
-        return None
-    except jwt.exceptions.InvalidSignatureError:
-        print("invalid signature")
-        return None
-    except jwt.exceptions.DecodeError:
-        print("Malformed Token")
+
+    except jwt.ExpiredSignatureError:
+        print("Expired token")
         return None
 
-async def decode_jwt_token_without_expiration(token):
-    SECRET_KEYS = await get_secret_dict()
-    # Decode header to extract the `kid`
-    unverified_header = jwt.get_unverified_header(token)
-    kid = unverified_header['kid']
+    except jwt.InvalidSignatureError:
+        print("Invalid signature")
+        return None
 
-    # Look up the correct key
-    key = SECRET_KEYS.get(kid)
+    except jwt.DecodeError:
+        print("Malformed token")
+        return None
 
-    if not key:
-        raise Exception("Unknown key ID")
+    except Exception as e:
+        print(f"Unexpected decode error: {e}")
+        return None
 
-    # Now decode and verify
+async def decode_jwt_token_without_expiration(token: str):
     try:
-        decoded = jwt.decode(token, key, algorithms=['HS256'])
-        return decoded
-    except jwt.exceptions.ExpiredSignatureError:
-        print("expired token")
-        payload = decoded = jwt.decode(token, key, algorithms=['HS256'],options={"verify_exp": False})
-        return payload
+        # Try decoding normally (with expiration check)
+        decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
 
-    except jwt.exceptions.DecodeError:
-        print("Malformed Token")
+        return decoded
+    
+    except jwt.ExpiredSignatureError:
+    
+        try:
+            # Decode again but skip exp validation
+            decoded = jwt.decode(
+                token, SECRET_KEY, algorithms=["HS256"], options={"verify_exp": False}
+            )
+            return decoded
+        except Exception as inner_e:
+            print(f"Failed to decode expired token: {inner_e}")
+            return None
+
+    except jwt.DecodeError:
+        print("Malformed token")
+        return None
+
+    except Exception as e:
+        print(f"Unexpected error decoding token: {e}")
         return None
 
 
