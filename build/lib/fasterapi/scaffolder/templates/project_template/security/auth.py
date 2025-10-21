@@ -4,7 +4,7 @@ from fastapi.security import HTTPBearer
 
 from security.tokens import validate_admin_accesstoken,validate_admin_accesstoken_otp,generate_refresh_tokens,generate_member_access_tokens, validate_member_accesstoken, validate_refreshToken,validate_member_accesstoken_without_expiration,generate_admin_access_tokens,validate_expired_admin_accesstoken
 from security.encrypting_jwt import decode_jwt_token,decode_jwt_token_without_expiration
-from repositories.tokens_repo import get_access_tokens,get_access_tokens_no_date_check,get_agent_access_tokens,get_client_access_tokens
+from repositories.tokens_repo import get_access_tokens,get_access_tokens_no_date_check
 from schemas.tokens_schema import refreshedToken,accessTokenOut
 
 
@@ -24,30 +24,6 @@ async def verify_token(token: str = Depends(token_auth_scheme))->accessTokenOut:
             
 
 
-
-async def verify_client_token(token: str = Depends(token_auth_scheme))->accessTokenOut:
-    result = await get_client_access_tokens(accessToken=token.credentials)
-    
-    if result==None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
-        )
-    else:
-        return result
-            
-            
-async def verify_agent_token(token: str = Depends(token_auth_scheme))->accessTokenOut:
-    result = await get_agent_access_tokens(accessToken=token.credentials)
-    
-    if result==None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
-        )
-    else:
-        return result
-            
             
 async def verify_token_to_refresh(token: str = Depends(token_auth_scheme)):
     result = await get_access_tokens_no_date_check(accessToken=token.credentials)
