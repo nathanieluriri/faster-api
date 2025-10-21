@@ -1,5 +1,5 @@
 
-from fastapi import APIRouter, HTTPException, Query, status, Path,Depends
+from fastapi import APIRouter, HTTPException, Query, Request, status, Path,Depends
 from typing import List
 from schemas.response_schema import APIResponse
 from schemas.tokens_schema import accessTokenOut
@@ -19,10 +19,31 @@ from services.user_service import (
     update_user,
     update_user_by_id,
     refresh_user_tokens_reduce_number_of_logins,
-
+    oauth
 )
 from security.auth import verify_token,verify_token_to_refresh
 router = APIRouter(prefix="/users", tags=["Users"])
+# --- Step 1: Redirect user to Google login ---
+@router.get("/google/auth")
+async def login_with_google_account(request: Request):
+    base_url = request.url_for("root")
+    redirect_uri = f"{base_url}auth/callback"
+    print(redirect_uri)
+    return await oauth.google.authorize_redirect(request, redirect_uri)
+
+
+# --- Step 2: Handle callback from Google ---
+@router.get("/auth/callback")
+async def auth_callback(request: Request):
+    token = await oauth.google.authorize_access_token(request)
+    user_info = token.get('userinfo')
+
+    # Just print or return user info for now
+    if user_info:
+        print("✅ Google user info:", user_info)
+        return APIResponse(status_code=200,detail="Successful Login",data={"status": "success", "user": user_info})
+    else:
+        raise HTTPException(status_code=400,detail={"status": "failed", "message": "No user info found"})
 
 @router.get("/{start}/{stop}",response_model_exclude={"data": {"__all__": {"password"}}}, response_model=APIResponse[List[UserOut]],response_model_exclude_none=True,dependencies=[Depends(verify_token)])
 async def list_users(start:int= 0, stop:int=100):
