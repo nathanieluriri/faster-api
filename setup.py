@@ -7,7 +7,7 @@ with open("README.md", "r", encoding="utf-8") as f:
     long_description = f.read()
     
 setup(
-    name="nats-fasterapi",
+    name="nats_fasterapi",
      version=version["__version__"],
     description="A CLI tool to scaffold FastAPI projects with CRUD and schema support",
     author="Nathaniel Uriri",

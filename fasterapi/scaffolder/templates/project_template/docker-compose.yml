@@ -25,8 +25,9 @@ services:
   
   worker:
     build: .
-    command: celery -A celery_worker worker --loglevel=info --pool=eventlet --concurrency=10
+    command: celery -A celery_worker worker -l info --pool=custom --concurrency=5
     environment:
+      - CELERY_CUSTOM_WORKER_POOL=celery_aio_pool.pool:AsyncIOPool
       - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
       - MONGO_URL=${MONGO_URL}

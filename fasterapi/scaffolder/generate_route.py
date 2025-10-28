@@ -119,8 +119,8 @@ def create_route_file(name: str, version: str = None, base_dir: str = None) -> b
 
     # Generate route code
     route_code = f"""
-from fastapi import APIRouter, HTTPException, Query, status, Path
-from typing import List
+from fastapi import APIRouter, HTTPException, Query, Path, status
+from typing import List, Optional
 from schemas.response_schema import APIResponse
 from schemas.{db_name} import (
     {class_name}Create,
@@ -138,16 +138,125 @@ from services.{db_name}_service import (
 
 router = APIRouter(prefix="/{db_name}s", tags=["{class_name}s"])
 
-@router.get("/", response_model=APIResponse[List[{class_name}Out]])
-async def list_{db_name}s():
-    items = await retrieve_{db_name}s()
-    return APIResponse(status_code=200, data=items, detail="Fetched successfully")
 
-@router.get("/me", response_model=APIResponse[{class_name}Out])
-async def get_my_{db_name}s(id: str = Query(..., description="{db_name} ID to fetch specific item")):
-    items = await retrieve_{db_name}_by_{db_name}_id(id=id)
-    return APIResponse(status_code=200, data=items, detail="{db_name}s items fetched")
-""" 
+# ------------------------------
+# List {class_name}s (with pagination)
+# ------------------------------
+@router.get("/", response_model=APIResponse[List[{class_name}Out]])
+async def list_{db_name}s(
+    start: Optional[int] = Query(None, description="Start index for range-based pagination"),
+    stop: Optional[int] = Query(None, description="Stop index for range-based pagination"),
+    page_number: Optional[int] = Query(None, description="Page number for page-based pagination (0-indexed)")
+):
+    \"""
+    Retrieves a list of {class_name}s with pagination.
+    - Priority 1: Range-based (start/stop)
+    - Priority 2: Page-based (page_number)
+    - Priority 3: Default (first 100)
+    \"""
+    PAGE_SIZE = 50
+
+    # Case 1: Prefer start/stop if provided
+    if start is not None or stop is not None:
+        if start is None or stop is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Both 'start' and 'stop' must be provided together.")
+        if stop < start:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="'stop' cannot be less than 'start'.")
+        
+        items = await retrieve_{db_name}s(start=start, stop=stop)
+        return APIResponse(status_code=status.HTTP_200_OK, data=items, detail="Fetched successfully")
+
+    # Case 2: Use page_number if provided
+    elif page_number is not None:
+        if page_number < 0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="'page_number' cannot be negative.")
+        
+        start_index = page_number * PAGE_SIZE
+        stop_index = start_index + PAGE_SIZE
+        items = await retrieve_{db_name}s(start=start_index, stop=stop_index)
+        return APIResponse(status_code=status.HTTP_200_OK, data=items, detail=f"Fetched page {{page_number}} successfully")
+
+    # Case 3: Default (no params)
+    else:
+        items = await retrieve_{db_name}s(start=0, stop=100)
+        return APIResponse(status_code=status.HTTP_200_OK, data=items, detail="Fetched first 100 records successfully")
+
+
+# ------------------------------
+# Retrieve a single {class_name}
+# ------------------------------
+
+
+@router.get("/{{id}}", response_model=APIResponse[{class_name}Out])
+async def get_{db_name}_by_id(
+    id: str = Path(..., description="{db_name} ID to fetch specific item")
+):
+    \"""
+    Retrieves a single {class_name} by its ID.
+    \"""
+    item = await retrieve_{db_name}_by_{db_name}_id(id=id)
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{class_name} not found")
+    return APIResponse(status_code=status.HTTP_200_OK, data=item, detail="{db_name} item fetched")
+
+
+# ------------------------------
+# Create a new {class_name}
+# ------------------------------
+@router.post("/", response_model=APIResponse[{class_name}Out], status_code=status.HTTP_201_CREATED)
+async def create_{db_name}(payload: {class_name}Base):
+    \"""
+    Creates a new {class_name}.
+    \"""
+    new_data = {class_name}Create(**payload.model_dump())
+    new_item = await add_{db_name}(new_data)
+    if not new_item:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to create {db_name}")
+    
+    # Note: The 201 status is set in the decorator, but the response body is still returned.
+    return APIResponse(status_code=status.HTTP_201_CREATED, data=new_item, detail=f"{class_name} created successfully")
+
+
+# ------------------------------
+# Update an existing {class_name}
+# ------------------------------
+# RECOMMENDATION 2:
+# 1. Changed verb from PUT to PATCH. PUT implies full replacement, while
+#    an 'Update' schema usually means partial updates, which is what PATCH is for.
+# 2. Removed ' = None' from the payload. An update request should have a body.
+@router.patch("/{id}", response_model=APIResponse[{class_name}Out])
+async def update_{db_name}(
+    id: str = Path(..., description="ID of the {db_name} to update"),
+    payload: {class_name}Update
+):
+    \"""
+    Updates an existing {class_name} by its ID.
+    Assumes the service layer handles partial updates (e.g., ignores None fields in payload).
+    \"""
+    updated_item = await update_{db_name}_by_id(id=id, data=payload)
+    if not updated_item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{class_name} not found or update failed")
+    
+    return APIResponse(status_code=status.HTTP_200_OK, data=updated_item, detail=f"{class_name} updated successfully")
+
+
+# ------------------------------
+# Delete an existing {class_name}
+# ------------------------------
+@router.delete("/{{id}}", response_model=APIResponse[None])
+async def delete_{db_name}(id: str = Path(..., description="ID of the {db_name} to delete")):
+    \"""
+    Deletes an existing {class_name} by its ID.
+    \"""
+    deleted = await remove_{db_name}(id)
+    if not deleted:
+        # This assumes remove_{db_name} returns a boolean or similar
+        # to indicate if deletion was successful (i.e., item was found).
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{class_name} not found or deletion failed")
+    
+    return APIResponse(status_code=status.HTTP_200_OK, data=None, detail=f"{class_name} deleted successfully")
+"""
+
 
     # Write route file
     try:

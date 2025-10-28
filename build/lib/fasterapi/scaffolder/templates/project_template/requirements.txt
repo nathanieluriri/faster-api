@@ -24,3 +24,4 @@ limits
 bcrypt
 APScheduler==3.11.0
 authlib
+celery-aio-pool

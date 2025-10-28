@@ -17,6 +17,7 @@ fasterapi/scaffolder/generate_tokens_repo.py
 fasterapi/scaffolder/mount_routes.py
 fasterapi/scaffolder/templates/project_template/.env.example
 fasterapi/scaffolder/templates/project_template/.gitignore
+fasterapi/scaffolder/templates/project_template/Dockerfile
 fasterapi/scaffolder/templates/project_template/celery_worker.py
 fasterapi/scaffolder/templates/project_template/docker-compose.yml
 fasterapi/scaffolder/templates/project_template/main.py
