@@ -1,9 +1,11 @@
 import os
 import re
 import sys
+import json # Added import for parsing filter JSON
 from pathlib import Path
 from pydantic import BaseModel
 import importlib
+from datetime import datetime # Added missing import
 
 def get_latest_modified_api_version(base_dir: str = None) -> str:
     """
@@ -114,13 +116,14 @@ def create_route_file(name: str, version: str = None, base_dir: str = None) -> b
             return False
     
     # Dynamically import schema to verify models
-   
-
+    
 
     # Generate route code
+    # NOTE: Added 'import json' to route_code and updated the list route for filters.
     route_code = f"""
 from fastapi import APIRouter, HTTPException, Query, Path, status
 from typing import List, Optional
+import json
 from schemas.response_schema import APIResponse
 from schemas.{db_name} import (
     {class_name}Create,
@@ -140,22 +143,36 @@ router = APIRouter(prefix="/{db_name}s", tags=["{class_name}s"])
 
 
 # ------------------------------
-# List {class_name}s (with pagination)
+# List {class_name}s (with pagination and filtering)
 # ------------------------------
 @router.get("/", response_model=APIResponse[List[{class_name}Out]])
 async def list_{db_name}s(
     start: Optional[int] = Query(None, description="Start index for range-based pagination"),
     stop: Optional[int] = Query(None, description="Stop index for range-based pagination"),
-    page_number: Optional[int] = Query(None, description="Page number for page-based pagination (0-indexed)")
+    page_number: Optional[int] = Query(None, description="Page number for page-based pagination (0-indexed)"),
+    # New: Filter parameter expects a JSON string
+    filters: Optional[str] = Query(None, description="Optional JSON string of MongoDB filter criteria (e.g., '{{\"field\": \"value\"}}')")
 ):
     \"""
-    Retrieves a list of {class_name}s with pagination.
+    Retrieves a list of {class_name}s with pagination and optional filtering.
     - Priority 1: Range-based (start/stop)
     - Priority 2: Page-based (page_number)
     - Priority 3: Default (first 100)
     \"""
     PAGE_SIZE = 50
+    parsed_filters = {{}}
 
+    # 1. Handle Filters
+    if filters:
+        try:
+            parsed_filters = json.loads(filters)
+        except json.JSONDecodeError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid JSON format for 'filters' query parameter."
+            )
+
+    # 2. Determine Pagination
     # Case 1: Prefer start/stop if provided
     if start is not None or stop is not None:
         if start is None or stop is None:
@@ -163,8 +180,9 @@ async def list_{db_name}s(
         if stop < start:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="'stop' cannot be less than 'start'.")
         
-        items = await retrieve_{db_name}s(start=start, stop=stop)
-        return APIResponse(status_code=status.HTTP_200_OK, data=items, detail="Fetched successfully")
+        # Pass filters to the service layer
+        items = await retrieve_{db_name}s(filters=parsed_filters, start=start, stop=stop)
+        return APIResponse(status_code=200, data=items, detail="Fetched successfully")
 
     # Case 2: Use page_number if provided
     elif page_number is not None:
@@ -173,20 +191,24 @@ async def list_{db_name}s(
         
         start_index = page_number * PAGE_SIZE
         stop_index = start_index + PAGE_SIZE
-        items = await retrieve_{db_name}s(start=start_index, stop=stop_index)
-        return APIResponse(status_code=status.HTTP_200_OK, data=items, detail=f"Fetched page {{page_number}} successfully")
+        # Pass filters to the service layer
+        items = await retrieve_{db_name}s(filters=parsed_filters, start=start_index, stop=stop_index)
+        return APIResponse(status_code=200, data=items, detail=f"Fetched page {{page_number}} successfully")
 
     # Case 3: Default (no params)
     else:
-        items = await retrieve_{db_name}s(start=0, stop=100)
-        return APIResponse(status_code=status.HTTP_200_OK, data=items, detail="Fetched first 100 records successfully")
+        # Pass filters to the service layer
+        items = await retrieve_{db_name}s(filters=parsed_filters, start=0, stop=100)
+        detail_msg = "Fetched first 100 records successfully"
+        if parsed_filters:
+            # If filters were applied, adjust the detail message
+             detail_msg = f"Fetched first 100 records successfully (with filters applied)"
+        return APIResponse(status_code=200, data=items, detail=detail_msg)
 
 
 # ------------------------------
 # Retrieve a single {class_name}
 # ------------------------------
-
-
 @router.get("/{{id}}", response_model=APIResponse[{class_name}Out])
 async def get_{db_name}_by_id(
     id: str = Path(..., description="{db_name} ID to fetch specific item")
@@ -197,33 +219,31 @@ async def get_{db_name}_by_id(
     item = await retrieve_{db_name}_by_{db_name}_id(id=id)
     if not item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{class_name} not found")
-    return APIResponse(status_code=status.HTTP_200_OK, data=item, detail="{db_name} item fetched")
+    return APIResponse(status_code=200, data=item, detail="{db_name} item fetched")
 
 
 # ------------------------------
 # Create a new {class_name}
 # ------------------------------
+# Uses {class_name}Base for input (correctly)
 @router.post("/", response_model=APIResponse[{class_name}Out], status_code=status.HTTP_201_CREATED)
 async def create_{db_name}(payload: {class_name}Base):
     \"""
     Creates a new {class_name}.
     \"""
-    new_data = {class_name}Create(**payload.model_dump())
+    # Creates {class_name}Create object which includes date_created/last_updated
+    new_data = {class_name}Create(**payload.model_dump()) 
     new_item = await add_{db_name}(new_data)
     if not new_item:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to create {db_name}")
     
-    # Note: The 201 status is set in the decorator, but the response body is still returned.
     return APIResponse(status_code=status.HTTP_201_CREATED, data=new_item, detail=f"{class_name} created successfully")
 
 
 # ------------------------------
 # Update an existing {class_name}
 # ------------------------------
-# RECOMMENDATION 2:
-# 1. Changed verb from PUT to PATCH. PUT implies full replacement, while
-#    an 'Update' schema usually means partial updates, which is what PATCH is for.
-# 2. Removed ' = None' from the payload. An update request should have a body.
+# Uses PATCH for partial update (correctly)
 @router.patch("/{id}", response_model=APIResponse[{class_name}Out])
 async def update_{db_name}(
     id: str = Path(..., description="ID of the {db_name} to update"),
@@ -237,7 +257,7 @@ async def update_{db_name}(
     if not updated_item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{class_name} not found or update failed")
     
-    return APIResponse(status_code=status.HTTP_200_OK, data=updated_item, detail=f"{class_name} updated successfully")
+    return APIResponse(status_code=200, data=updated_item, detail=f"{class_name} updated successfully")
 
 
 # ------------------------------
@@ -254,21 +274,19 @@ async def delete_{db_name}(id: str = Path(..., description="ID of the {db_name} 
         # to indicate if deletion was successful (i.e., item was found).
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{class_name} not found or deletion failed")
     
-    return APIResponse(status_code=status.HTTP_200_OK, data=None, detail=f"{class_name} deleted successfully")
+    return APIResponse(status_code=200, data=None, detail=f"{class_name} deleted successfully")
 """
 
 
     # Write route file
     try:
         route_path.parent.mkdir(parents=True, exist_ok=True)
+        # Use utf-8 encoding for reliable file writing
         with route_path.open("w",encoding="utf-8") as f:
             f.write(route_code)
-         
+          
         print(f"✅ Route file created: {route_path}")
         return True
     except Exception as e:
         print(f"❌ Failed to write route file: {e}")
         return False
-    
-    
-    
