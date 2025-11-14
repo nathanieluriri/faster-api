@@ -114,7 +114,7 @@ async def update_{db_name}_by_id({db_name}_id: str, {db_name}_data: {update_clas
 '''.strip()
 
     service_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(service_path, "w") as f:
+    with open(service_path, "w",encoding="utf-8") as f:
         f.write(service_code)
 
     print(f"✅ Service for '{db_name}' created at services/{db_name}_services.py")

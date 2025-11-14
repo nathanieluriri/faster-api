@@ -90,7 +90,7 @@ async def delete_{db_name}(filter_dict: dict):
     return await db.{db_name}s.delete_one(filter_dict)
 '''.strip()
 
-    with open(repo_path, "w") as f:
+    with open(repo_path, "w",encoding="utf-8") as f:
         f.write(crud_code)
 
     print(f"✅ CRUD for '{db_name}' created in repository/{db_name}.py")

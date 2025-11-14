@@ -261,7 +261,7 @@ async def delete_{db_name}(id: str = Path(..., description="ID of the {db_name} 
     # Write route file
     try:
         route_path.parent.mkdir(parents=True, exist_ok=True)
-        with route_path.open("w") as f:
+        with route_path.open("w",encoding="utf-8") as f:
             f.write(route_code)
          
         print(f"✅ Route file created: {route_path}")
@@ -269,3 +269,6 @@ async def delete_{db_name}(id: str = Path(..., description="ID of the {db_name} 
     except Exception as e:
         print(f"❌ Failed to write route file: {e}")
         return False
+    
+    
+    
