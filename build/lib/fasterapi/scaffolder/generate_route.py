@@ -151,7 +151,7 @@ async def list_{db_name}s(
     stop: Optional[int] = Query(None, description="Stop index for range-based pagination"),
     page_number: Optional[int] = Query(None, description="Page number for page-based pagination (0-indexed)"),
     # New: Filter parameter expects a JSON string
-    filters: Optional[str] = Query(None, description="Optional JSON string of MongoDB filter criteria (e.g., '{{\"field\": \"value\"}}')")
+    filters: Optional[str] = Query(None, description="Optional JSON string of MongoDB filter criteria (e.g., '{{\\"field\\": \\"value\\"}}')")
 ):
     \"""
     Retrieves a list of {class_name}s with pagination and optional filtering.
@@ -202,7 +202,7 @@ async def list_{db_name}s(
         detail_msg = "Fetched first 100 records successfully"
         if parsed_filters:
             # If filters were applied, adjust the detail message
-             detail_msg = f"Fetched first 100 records successfully (with filters applied)"
+            detail_msg = f"Fetched first 100 records successfully (with filters applied)"
         return APIResponse(status_code=200, data=items, detail=detail_msg)
 
 
@@ -244,10 +244,10 @@ async def create_{db_name}(payload: {class_name}Base):
 # Update an existing {class_name}
 # ------------------------------
 # Uses PATCH for partial update (correctly)
-@router.patch("/{id}", response_model=APIResponse[{class_name}Out])
+@router.patch("/{{id}}", response_model=APIResponse[{class_name}Out])
 async def update_{db_name}(
-    id: str = Path(..., description="ID of the {db_name} to update"),
-    payload: {class_name}Update
+    id: str = Path(..., description="ID of the {{db_name}} to update"),
+    payload: {class_name}Update = None
 ):
     \"""
     Updates an existing {class_name} by its ID.

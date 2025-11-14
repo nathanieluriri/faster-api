@@ -59,7 +59,8 @@ async def remove_{db_name}({db_name}_id: str):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="{class_name} not found")
 
-
+    else: return True
+    
 async def retrieve_{db_name}_by_{db_name}_id(id: str) -> {out_class_name}:
     """Retrieves {db_name} object based specific Id 
 
