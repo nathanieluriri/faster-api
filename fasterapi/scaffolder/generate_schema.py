@@ -63,7 +63,7 @@ class {class_name}Out({class_name}Base):
     
 '''.strip()
 
-    with open(schema_path, "w") as f:
+    with open(schema_path, "w", encoding="utf-8") as f:
         f.write(schema_code)
 
     print(f"✅ Schema file created: schemas/{db_name}.py")
