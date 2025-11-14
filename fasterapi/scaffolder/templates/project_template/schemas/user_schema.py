@@ -28,22 +28,21 @@ class UserUpdate(BaseModel):
 
 class UserOut(UserBase):
     # Add other fields here 
-    id: Optional[str] =None
+    id: Optional[str] = Field(default=None, alias="_id")
     date_created: Optional[int] = None
     last_updated: Optional[int] = None
     refresh_token: Optional[str] =None
     access_token:Optional[str]=None
-    @model_validator(mode='before')
-    def set_dynamic_values(cls,values):
-        if isinstance(values,dict):
-            values['id']= str(values.get('_id'))
-            return values
-      
+    @model_validator(mode="before")
+    @classmethod
+    def convert_objectid(cls, values):
+        if "_id" in values and isinstance(values["_id"], ObjectId):
+            values["_id"] = str(values["_id"])  # coerce to string before validation
+        return values
             
     class Config:
-        from_attributes = True
-        populate_by_name = True
-        arbitrary_types_allowed = True
+        populate_by_name = True  # allows using `id` when constructing the model
+        arbitrary_types_allowed = True  # allows ObjectId type
         json_encoders = {
-            ObjectId: str
+            ObjectId: str  # automatically converts ObjectId → str
         }

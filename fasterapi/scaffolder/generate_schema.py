@@ -43,21 +43,24 @@ class {class_name}Update(BaseModel):
 
 class {class_name}Out({class_name}Base):
     # Add other fields here 
-    id: Optional[str] =None
+    id: Optional[str] = Field(default=None, alias="_id")
     date_created: Optional[int] = None
     last_updated: Optional[int] = None
     
-    @model_validator(mode='before')
-    def set_dynamic_values(cls,values):
-        values['id']= str(values.get('_id'))
+    @model_validator(mode="before")
+    @classmethod
+    def convert_objectid(cls, values):
+        if "_id" in values and isinstance(values["_id"], ObjectId):
+            values["_id"] = str(values["_id"])  # coerce to string before validation
         return values
+            
     class Config:
-        from_attributes = True
-        populate_by_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {{
-            ObjectId: str
+        populate_by_name = True  # allows using `id` when constructing the model
+        arbitrary_types_allowed = True  # allows ObjectId type
+        json_encoders ={{
+            ObjectId: str  # automatically converts ObjectId → str
         }}
+    
 '''.strip()
 
     with open(schema_path, "w") as f:
