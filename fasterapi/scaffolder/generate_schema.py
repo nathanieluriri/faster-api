@@ -43,9 +43,21 @@ class {class_name}Update(BaseModel):
 
 class {class_name}Out({class_name}Base):
     # Add other fields here 
-    id: Optional[str] = Field(default=None, alias="_id")
-    date_created: Optional[int] = None
-    last_updated: Optional[int] = None
+    id: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("_id", "id"),
+        serialization_alias="id",
+    )
+    date_created: Optional[int] = Field(
+        default=None,
+        validation_alias=AliasChoices("date_created", "dateCreated"),
+        serialization_alias="dateCreated",
+    )
+    last_updated: Optional[int] = Field(
+        default=None,
+        validation_alias=AliasChoices("last_updated", "lastUpdated"),
+        serialization_alias="lastUpdated",
+    )
     
     @model_validator(mode="before")
     @classmethod
