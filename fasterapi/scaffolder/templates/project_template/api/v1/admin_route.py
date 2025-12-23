@@ -11,6 +11,8 @@ from schemas.admin_schema import (
     AdminRefresh,
     AdminLogin
 )
+from core.admin_logger import log_what_admin_does
+from security.account_status_check import check_admin_account_status_and_permissions
 from services.admin_service import (
     add_admin,
     remove_admin,
@@ -23,24 +25,28 @@ from services.admin_service import (
 )
 from security.auth import verify_token,verify_token_to_refresh,verify_admin_token
 router = APIRouter(prefix="/admins", tags=["Admins"])
+            
+ 
 
+ 
 @router.get(
-    "/{start}/{stop}", 
+    "/", 
     response_model=APIResponse[List[AdminOut]],
     response_model_exclude_none=True,
     response_model_exclude={"data": {"__all__": {"password"}}},
-    dependencies=[Depends(verify_admin_token)]
+    dependencies=[Depends(verify_admin_token),Depends(log_what_admin_does),Depends(check_admin_account_status_and_permissions)]
 )
 async def list_admins(
+    
     # Use Path and Query for explicit documentation/validation of GET parameters
     start: Annotated[
         int,
-        Path(ge=0, description="The starting index (offset) for the list of admins.")
+        Query(ge=0, description="The starting index (offset) for the list of admins.")
     ] , 
     stop: Annotated[
         int, 
-        Path(gt=0, description="The ending index for the list of admins (limit).")
-    ] 
+        Query(gt=0, description="The ending index for the list of admins (limit).")
+    ]
 ):
     """
     **ADMIN ONLY:** Retrieves a paginated list of all registered admins.
@@ -66,9 +72,9 @@ async def list_admins(
 
 
 @router.get(
-    "/me", 
+    "/profile", 
     response_model=APIResponse[AdminOut],
-    dependencies=[Depends(verify_admin_token)],
+    dependencies=[Depends(verify_admin_token),Depends(log_what_admin_does),Depends(check_admin_account_status_and_permissions)],
     response_model_exclude_none=True,
     response_model_exclude={"data": {"password"}},
 )
@@ -90,26 +96,9 @@ async def get_my_admin(
 
 
 
-@router.post("/signup",response_model_exclude_none=True, response_model_exclude={"data": {"password"}},response_model=APIResponse[AdminOut])
+@router.post("/signup",dependencies=[Depends(verify_admin_token),Depends(log_what_admin_does),Depends(check_admin_account_status_and_permissions)],response_model_exclude_none=True, response_model_exclude={"data": {"password"}},response_model=APIResponse[AdminOut])
 async def signup_new_admin(
-    
-    admin_data: Annotated[
-        AdminBase,
-        Body(
-            openapi_examples={
-                "admin Signup": {
-                    "summary": "Admin Signup Example",
-                    "description": "Example payload for a **Admin** registering on the platform.",
-                    "value": {
-                        "full_name": "Admin Base",
-                        "password": "securepassword123",
-                        "email": "admin@secure.com"
-                    },
-                },
-              
-            }
-        ),
-    ],
+    admin_data:AdminBase,
     token: accessTokenOut = Depends(verify_admin_token),
 ):
  
@@ -123,37 +112,9 @@ async def signup_new_admin(
 
 @router.post("/login",response_model_exclude={"data": {"password"}}, response_model_exclude_none=True,response_model=APIResponse[AdminOut])
 async def login_admin(
-    admin_data: Annotated[
-        AdminLogin,
-        Body(
-            openapi_examples={
-                "successful_login": {
-                    "summary": "Successful Login",
-                    "description": "Standard payload for a successful authentication attempt.",
-                    "value": {
-                        "email": "admin@registered.com",
-                        "password": "securepassword123",
-                    },
-                },
-                "unauthorized_login": {
-                    "summary": "Unauthorized Login (Wrong Password)",
-                    "description": "Payload that would result in a **401 Unauthorized** error due to incorrect credentials.",
-                    "value": {
-                        "email": "admin@registered.com",
-                        "password": "wrongpassword999", # Intentionally incorrect
-                    },
-                },
-                "invalid_email_format": {
-                    "summary": "Invalid Email Format",
-                    "description": "Payload that would trigger a **422 Unprocessable Entity** error due to Pydantic validation failure (not a valid email address).",
-                    "value": {
-                        "email": "not-an-email-address", # Pydantic will flag this
-                        "password": "anypassword",
-                    },
-                },
-            }
-        ),
-    ]
+    
+    admin_data:AdminLogin,
+
 ):
     """
     Authenticates a admin with the provided email and password.
@@ -221,8 +182,7 @@ async def refresh_admin_tokens(
 
     Requires an **expired access token** in the Authorization header and a **valid refresh token** in the body.
     """
-    print("itemsssssssssssssssssssssssssssssssssssssssssss")
-    print(token)
+ 
     items = await refresh_admin_tokens_reduce_number_of_logins(
         admin_refresh_data=admin_data,
         expired_access_token=token.accesstoken
@@ -234,34 +194,10 @@ async def refresh_admin_tokens(
     return APIResponse(status_code=200, data=items, detail="admins items fetched")
 
 
-@router.delete("/account", dependencies=[Depends(verify_admin_token)], response_model_exclude_none=True)
+@router.delete("/account",dependencies=[Depends(verify_admin_token),Depends(log_what_admin_does)], response_model_exclude_none=True)
 async def delete_admin_account(
     token: accessTokenOut = Depends(verify_token),
-    # Use Body to host the openapi_examples, even if the payload is empty
-    # We use a simple dictionary here since there is no Pydantic model for the body
-    _body: Annotated[
-        dict,
-        Body(
-            openapi_examples={
-                "successful_deletion": {
-                    "summary": "Successful Account Deletion",
-                    "description": (
-                        "A successful request **requires no body** and relies entirely on a **valid, non-expired Access Token** "
-                        "in the `Authorization: Bearer <token>` header to identify the admin."
-                    ),
-                    "value": {},  # Empty body
-                },
-                "unauthorized_deletion": {
-                    "summary": "Unauthorized Deletion (Invalid Token)",
-                    "description": (
-                        "This scenario represents a request where the **Access Token is missing, expired, or invalid**. "
-                        "The `verify_token` dependency should intercept this and return a **401 Unauthorized**."
-                    ),
-                    "value": {},  # Empty body
-                },
-            }
-        ),
-    ] = {}, # Default empty dictionary for the body
+ 
 ):
     """
     Deletes the account associated with the provided access token.

@@ -15,6 +15,8 @@ from security.hash import check_password
 from repositories.tokens_repo import add_refresh_tokens, add_admin_access_tokens, accessTokenCreate,accessTokenOut,refreshTokenCreate
 from repositories.tokens_repo import get_refresh_tokens,get_access_tokens,delete_access_token,delete_refresh_token,delete_all_tokens_with_admin_id
 from security.encrypting_jwt import create_jwt_admin_token
+
+
 async def add_admin(admin_data: AdminCreate) -> AdminOut:
     """adds an entry of AdminCreate to the database and returns an object
 
@@ -117,8 +119,7 @@ async def retrieve_admins(start=0,stop=100) -> List[AdminOut]:
     """
     return await get_admins(start=start,stop=stop)
 
-
-async def update_admin_by_id(admin_id: str, admin_data: AdminUpdate) -> AdminOut:
+async def update_admin_by_id(admin_id: str, admin_data: AdminUpdate,is_password_getting_changed:bool=False) -> AdminOut:
     """_summary_
 
     Raises:
@@ -128,6 +129,8 @@ async def update_admin_by_id(admin_id: str, admin_data: AdminUpdate) -> AdminOut
     Returns:
         _type_: AdminOut
     """
+    from celery_worker import celery_app
+
     if not ObjectId.is_valid(admin_id):
         raise HTTPException(status_code=400, detail="Invalid admin ID format")
 
@@ -136,6 +139,8 @@ async def update_admin_by_id(admin_id: str, admin_data: AdminUpdate) -> AdminOut
 
     if not result:
         raise HTTPException(status_code=404, detail="Admin not found or update failed")
-
+    if is_password_getting_changed==True:
+        result = celery_app.send_task("celery_worker.run_async_task",args=["delete_tokens",{"userId": admin_id} ])
     return result
+
 

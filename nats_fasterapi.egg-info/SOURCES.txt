@@ -29,6 +29,7 @@ fasterapi/scaffolder/templates/project_template/api/v1/__init__.py
 fasterapi/scaffolder/templates/project_template/api/v1/admin_route.py
 fasterapi/scaffolder/templates/project_template/api/v1/user_route.py
 fasterapi/scaffolder/templates/project_template/core/__init__.py
+fasterapi/scaffolder/templates/project_template/core/admin_logger.py
 fasterapi/scaffolder/templates/project_template/core/database.py
 fasterapi/scaffolder/templates/project_template/core/redis_cache.py
 fasterapi/scaffolder/templates/project_template/core/scheduler.py
