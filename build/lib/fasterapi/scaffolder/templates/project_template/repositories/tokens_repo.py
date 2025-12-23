@@ -172,7 +172,12 @@ async def get_refresh_tokens(refreshToken:str)->refreshTokenOut:
 
     else: return None
     
-    
+
+
+async def delete_access_and_refresh_token_with_user_id(userId:str)->bool:
+     result = await db.refreshToken.delete_many({'userId':userId})
+     result1 = await db.accessToken.delete_many({'userId':userId})
+     return (result.acknowledged and result1.acknowledged)    
     
 async def delete_all_tokens_with_user_id(userId:str):
     await db.refreshToken.delete_many(filter={"userId":userId})
