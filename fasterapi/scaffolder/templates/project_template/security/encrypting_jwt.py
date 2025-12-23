@@ -1,15 +1,32 @@
 import jwt
-import datetime
-from datetime import timezone
+ 
+from datetime import timedelta, timezone,datetime
 from core.database import db
 from dotenv import load_dotenv
 import os
-import asyncio
+from pydantic import BaseModel
 from bson import ObjectId
 
 load_dotenv()
 SECRETID = os.getenv("SECRETID")
-SECRET_KEY = "your-secret-key"
+# Token lifetime (in minutes)
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+# Secret key for signing (use env var in production)
+
+
+# ---------------------------
+# JWT Schema
+# ---------------------------
+class JWTPayload(BaseModel):
+    access_token: str
+    user_id: str
+    user_type: str
+    is_activated: bool
+    exp: datetime
+    iat: datetime
+
+SECRET_KEY = "super-secure-secret-key"
+ALGORITHM = "HS256"
 
 async def get_secret_dict()->dict:
     result =await db.secret_keys.find_one({"_id":ObjectId(SECRETID)})
@@ -36,6 +53,39 @@ async def get_secret_and_header():
     return result
 
 
+# ---------------------------
+# Create Token
+# ---------------------------
+def create_jwt_token(
+    access_token: str,
+    user_id: str,
+    user_type: str,
+    is_activated: bool,
+    role: str = "member",
+) -> str:
+    payload = JWTPayload(
+        access_token=access_token,
+        user_id=user_id,
+        user_type=user_type,
+        is_activated=is_activated,
+        exp=datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        iat=datetime.now(timezone.utc),
+    ).model_dump()
+
+    payload["role"] = role
+
+    token = jwt.encode(
+        payload=payload,
+        key=SECRET_KEY,
+        algorithm=ALGORITHM,   # "HS256"
+        headers={"typ": "JWT"},
+    )
+
+    return token
+
+
+
+
 
 async def create_jwt_member_token(token):
     secrets = await get_secret_and_header()
@@ -45,7 +95,7 @@ async def create_jwt_member_token(token):
     payload = {
         'accessToken': token,
         'role':'member',
-        'exp': datetime.datetime.now(timezone.utc) + datetime.timedelta(minutes=15)
+        'exp': datetime.now(timezone.utc) + datetime(minutes=15)
     }
     
     
@@ -58,7 +108,7 @@ async def create_jwt_admin_token(token: str,userId:str):
         "accessToken": token,
         "role": "admin",
         "userId":userId,
-        "exp": datetime.datetime.now(timezone.utc) + datetime.timedelta(minutes=15)
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=15)
     }
 
     encoded_jwt = jwt.encode(payload, SECRET_KEY, algorithm="HS256")

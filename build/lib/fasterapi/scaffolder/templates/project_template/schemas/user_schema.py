@@ -4,6 +4,9 @@ import time
 from security.hash import hash_password
 class UserBase(BaseModel):
     # Add other fields here 
+    firstName:str
+    lastName:str
+    loginType:LoginType
     email:EmailStr
     password:str | bytes
     pass

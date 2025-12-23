@@ -133,25 +133,26 @@ async def retrieve_users(start=0,stop=100) -> List[UserOut]:
     """
     return await get_users(start=start,stop=stop)
 
-
-async def update_user_by_id(user_id: str, user_data: UserUpdate) -> UserOut:
-    """_summary_
+async def update_user_by_id(driver_id: str, driver_data: UserUpdate,is_password_getting_changed:bool=False) -> UserOut:
+    """updates an entry of driver in the database
 
     Raises:
-        HTTPException 404(not found): if User not found or update failed
-        HTTPException 400(not found): Invalid user ID format
+        HTTPException 404(not found): if Driver not found or update failed
+        HTTPException 400(not found): Invalid driver ID format
 
     Returns:
-        _type_: UserOut
+        _type_: DriverOut
     """
-    if not ObjectId.is_valid(user_id):
-        raise HTTPException(status_code=400, detail="Invalid user ID format")
+    from celery_worker import celery_app
+    if not ObjectId.is_valid(driver_id):
+        raise HTTPException(status_code=400, detail="Invalid driver ID format")
 
-    filter_dict = {"_id": ObjectId(user_id)}
-    result = await update_user(filter_dict, user_data)
-
+    filter_dict = {"_id": ObjectId(driver_id)}
+    result = await update_user(filter_dict, driver_data)
+    
     if not result:
-        raise HTTPException(status_code=404, detail="User not found or update failed")
-
+        raise HTTPException(status_code=404, detail="Driver not found or update failed")
+    if is_password_getting_changed==True:
+        result = celery_app.send_task("celery_worker.run_async_task",args=["delete_tokens",{"userId": driver_id} ])
     return result
 
