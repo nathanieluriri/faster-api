@@ -57,6 +57,7 @@ fasterapi/scaffolder/templates/project_template/security/encrypting_jwt.py
 fasterapi/scaffolder/templates/project_template/security/hash.py
 fasterapi/scaffolder/templates/project_template/security/permissions.py
 fasterapi/scaffolder/templates/project_template/security/tokens.py
+fasterapi/scaffolder/templates/project_template/server_automations/setup-ngnix-letsencryp.sh
 fasterapi/scaffolder/templates/project_template/services/__init__.py
 fasterapi/scaffolder/templates/project_template/services/admin_service.py
 fasterapi/scaffolder/templates/project_template/services/email_service.py
