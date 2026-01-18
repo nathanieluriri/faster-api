@@ -7,7 +7,7 @@ from fasterapi.scaffolder.generate_route import create_route_file,get_highest_nu
 from fasterapi.__version__ import __version__
 from fasterapi.scaffolder.mount_routes import update_main_routes
 from fasterapi.scaffolder.generate_tokens_repo import create_token_file
-from fasterapi.scaffolder.generate_dependencies import create_dependency_file
+from fasterapi.scaffolder.generate_account import create_account_files
 import subprocess
 
 @click.group()
@@ -91,7 +91,27 @@ def make_service(name):
       
         - A matching schema and repository should already exist.
     """
-    create_service_file(name)
+    result = create_service_file(name)
+    if not result:
+        raise click.Abort()
+
+
+@cli.command(name="make-account")
+@click.argument("name")
+def make_account(name):
+    """
+    Generate a full account scaffold (schema, repo, service, route) based on the user template.
+
+    \b
+    ✅ Good usage:
+        fasterapi make-account customer
+        fasterapi make-account client
+
+    Notes:
+        - This copies the built-in user account template and renames it.
+        - Includes auth and Google OAuth flow from the user template.
+    """
+    create_account_files(name)
     
 @cli.command()
 def mount():
@@ -228,7 +248,8 @@ def make_route(name, version_mode, yes):
         version = get_highest_numbered_api_version()
 
     click.secho(f"📌 Selected API version: {version}", fg="cyan")
-    create_route_file(name, version)
+    if not create_route_file(name, version):
+        raise click.Abort()
     click.secho(f"✅ Route for '{name}' created successfully.", fg="green")
 
  
@@ -265,29 +286,6 @@ def make_token_repo(roles):
         fg="green"
     )
 
-
-@cli.command()
-def make_token_deps():
-    """
-    Generate the token dependency file from the token repository.
-
-    \b
-    ✅ Good usage:
-        fasterapi make-token-deps
-
-    ❌ Bad usage:
-        fasterapi make-token-deps extra-arg   # This command takes no arguments
-
-    Notes:
-        - Run this after creating a token repository (make-token-repo).
-        - The generated file contains dependency utilities for authentication.
-    """
-    try:
-        create_dependency_file()
-        click.secho("✅ Token dependency file generated successfully.", fg="green")
-    except Exception as e:
-        click.secho(f"❌ Failed to generate token dependencies: {e}", fg="red")
-        raise click.Abort()
 
 @cli.command(name="git-push-auto")
 def git_push_auto():

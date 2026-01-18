@@ -7,7 +7,7 @@ from dateutil import parser
 from bson import ObjectId,errors
 from fastapi import HTTPException
 from repositories.admin_repo import get_admin
-from security.encrypting_jwt import decode_jwt_token_without_expiration
+from security.encrypting_jwt import decode_jwt_token, decode_jwt_token_without_expiration
 
 async def add_access_tokens(token_data:accessTokenCreate)->accessTokenOut:
     token = token_data.model_dump()
@@ -77,91 +77,75 @@ def is_older_than_days(date_value, days=10):
     return (now - created_date) > timedelta(days=days)
 
 
-async def get_access_tokens(accessToken:str)->accessTokenOut:
-    
-    token = await db.accessToken.find_one({"_id": ObjectId(accessToken)})
-    if token:
-        if is_older_than_days(date_value=token['dateCreated'])==False:
-            if token.get("role",None)=="member":
-                tokn = accessTokenOut(**token)
-                return tokn
-            elif token.get("role",None)=="admin":
-                if token.get('status',None)=="active":
-                    tokn = accessTokenOut(**token)
-                    return tokn
-                else: 
-                    return None
-            else:
-                return None
-            
-        else:
-            delete_access_token(accessToken=str(token['_id'])) 
-            return None
-    else:
-        print("No token found")
-        return "None"
-    
-    
-    
-async def get_admin_access_tokens(accessToken:str)->accessTokenOut:
-    
-    token = await db.accessToken.find_one({"_id": ObjectId(accessToken)})
-    print(token)
-    if token:
-        if is_older_than_days(date_value=token['dateCreated'])==False:
-            if token.get("role",None)=="admin":
-                userId = token.get("userId")
-                if await get_admin(filter_dict={"_id":ObjectId(userId)}):
-                
-                    tokn = accessTokenOut(**token)
-                    return tokn
-                else:
-                    print("not an admin access token")
-                    
-            elif token.get("role",None)=="admin":
-                if token.get('status',None)=="active":
-                    tokn = accessTokenOut(**token)
-                    return tokn
-                else: 
-                    return None
-            else:
-                return None
-            
-        else:
-            delete_access_token(accessToken=str(token['_id'])) 
-            return None
-    else:
-        print("No token foundddd")
+async def _resolve_access_token_id(accessToken: str, allow_expired: bool) -> str | None:
+    decoded = (
+        await decode_jwt_token_without_expiration(accessToken)
+        if allow_expired
+        else await decode_jwt_token(accessToken)
+    )
+    if decoded and decoded.get("accessToken"):
+        return decoded["accessToken"]
+
+    try:
+        ObjectId(accessToken)
+        return accessToken
+    except errors.InvalidId:
         return None
+
+
+async def get_access_token(accessToken: str, allow_expired: bool = False) -> accessTokenOut | None:
+    token_id = await _resolve_access_token_id(accessToken=accessToken, allow_expired=allow_expired)
+    if not token_id:
+        return None
+
+    token = await db.accessToken.find_one({"_id": ObjectId(token_id)})
+    if not token:
+        return None
+
+    if not allow_expired and is_older_than_days(date_value=token["dateCreated"]):
+        await delete_access_token(accessToken=str(token["_id"]))
+        return None
+
+    if token.get("role") == "admin" and token.get("status") != "active":
+        return None
+
+    return accessTokenOut(**token)
+
+
+async def get_access_tokens(accessToken: str) -> accessTokenOut | None:
+    return await get_access_token(accessToken=accessToken, allow_expired=False)
+    
+    
+    
+async def get_admin_access_tokens(accessToken: str) -> accessTokenOut | None:
+    token = await get_access_token(accessToken=accessToken, allow_expired=False)
+    if not token or token.role != "admin":
+        return None
+
+    user_id = token.userId
+    if not user_id:
+        return None
+
+    if await get_admin(filter_dict={"_id": ObjectId(user_id)}):
+        return token
+    return None
+
+
+async def get_inactive_access_token(token_id: str) -> accessTokenOut | None:
+    try:
+        obj_id = ObjectId(token_id)
+    except errors.InvalidId:
+        return None
+
+    token = await db.accessToken.find_one({"_id": obj_id, "status": "inactive"})
+    if token:
+        return accessTokenOut(**token)
+    return None
    
     
         
-from bson.errors import InvalidId
-
-async def get_access_tokens_no_date_check(accessToken: str) -> accessTokenOut | None:
-    try:
-        # Try interpreting the token as an ObjectId
-        object_id = ObjectId(accessToken)
-        token = await db.accessToken.find_one({"_id": object_id})
-    except (InvalidId, TypeError):
-        # If it's not a valid ObjectId, fall back to decoding the token
-        token = await decode_jwt_token_without_expiration(accessToken)
-        print("hereeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
-        print(token)
-
-    if not token:
-        print("No token found")
-        return None
-
-    role = token.get("role")
-    status = token.get("status")
-
-    if role == "member":
-        return accessTokenOut(**token)
-    elif role == "admin":
-       return accessTokenOut(**token)
-    else:
-        return None
+async def get_access_token_allow_expired(accessToken: str) -> accessTokenOut | None:
+    return await get_access_token(accessToken=accessToken, allow_expired=True)
 
     
 async def get_refresh_tokens(refreshToken:str)->refreshTokenOut:

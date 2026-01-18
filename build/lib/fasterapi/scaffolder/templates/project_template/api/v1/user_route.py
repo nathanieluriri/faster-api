@@ -19,6 +19,7 @@ from services.user_service import (
     remove_user,
     retrieve_users,
     authenticate_user,
+    authenticate_user_google,
     retrieve_user_by_user_id,
     update_user,
     update_user_by_id,
@@ -26,6 +27,7 @@ from services.user_service import (
     oauth
 )
 from security.auth import verify_token,verify_token_to_refresh
+from security.account_status_check import check_user_account_status_and_permissions
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -55,22 +57,9 @@ async def auth_callback_user(request: Request):
     if user_info:
         print("✅ Google user info:", user_info)
         rider = UserBase(firstName=user_info['name'],password='',lastName=user_info['given_name'],email=user_info['email'],loginType=LoginType.google)
-        data = await authenticate_user(user_data=rider)
-        if data==None:
-            new_rider = UserCreate(**rider.model_dump())
-            items = await add_user(user_data=new_rider)
-            
-            access_token = items.access_token
-            refresh_token = items.refresh_token
-            success_url = f"{SUCCESS_PAGE_URL}?access_token={access_token}&refresh_token={refresh_token}"
-            return RedirectResponse(
-            url=success_url,
-            status_code=status.HTTP_302_FOUND
-        )
+        data = await authenticate_user_google(user_data=rider)
         access_token = data.access_token
         refresh_token = data.refresh_token
-
-         
 
         success_url = f"{SUCCESS_PAGE_URL}?access_token={access_token}&refresh_token={refresh_token}"
 
@@ -81,12 +70,24 @@ async def auth_callback_user(request: Request):
     else:
         raise HTTPException(status_code=400,detail={"status": "failed", "message": "No user info found"})
 
-@router.get("/",response_model_exclude={"data": {"__all__": {"password"}}}, response_model=APIResponse[List[UserOut]],response_model_exclude_none=True,dependencies=[Depends(verify_token)])
+@router.get(
+    "/",
+    response_model_exclude={"data": {"__all__": {"password"}}},
+    response_model=APIResponse[List[UserOut]],
+    response_model_exclude_none=True,
+    dependencies=[Depends(verify_token), Depends(check_user_account_status_and_permissions)],
+)
 async def list_users(start:int= 0, stop:int=100):
     items = await retrieve_users(start=0,stop=100)
     return APIResponse(status_code=200, data=items, detail="Fetched successfully")
 
-@router.get("/me", response_model_exclude={"data": {"password"}},response_model=APIResponse[UserOut],dependencies=[Depends(verify_token)],response_model_exclude_none=True)
+@router.get(
+    "/me",
+    response_model_exclude={"data": {"password"}},
+    response_model=APIResponse[UserOut],
+    dependencies=[Depends(verify_token), Depends(check_user_account_status_and_permissions)],
+    response_model_exclude_none=True,
+)
 async def get_my_users(token:accessTokenOut = Depends(verify_token)):
     items = await retrieve_user_by_user_id(id=token.userId)
     return APIResponse(status_code=200, data=items, detail="users items fetched")
@@ -114,7 +115,7 @@ async def refresh_user_tokens(user_data:UserRefresh,token:accessTokenOut = Depen
     return APIResponse(status_code=200, data=items, detail="users items fetched")
 
 
-@router.delete("/account",dependencies=[Depends(verify_token)])
+@router.delete("/account",dependencies=[Depends(verify_token), Depends(check_user_account_status_and_permissions)])
 async def delete_user_account(token:accessTokenOut = Depends(verify_token)):
     result = await remove_user(user_id=token.userId)
     return result

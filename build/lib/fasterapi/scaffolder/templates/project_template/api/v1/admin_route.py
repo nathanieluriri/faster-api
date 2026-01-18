@@ -61,12 +61,7 @@ async def list_admins(
     
     """
     
-    # Note: The code below overrides the path parameters with hardcoded defaults (0, 100).
-    # You should typically use the passed parameters: 
-    # items = await retrieve_admins(start=start, stop=stop)
-    
-    # Using the hardcoded values from your original code:
-    items = await retrieve_admins(start=0, stop=100)
+    items = await retrieve_admins(start=start, stop=stop)
     
     return APIResponse(status_code=200, data=items, detail="Fetched successfully")
 

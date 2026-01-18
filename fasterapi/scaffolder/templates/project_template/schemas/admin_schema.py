@@ -10,6 +10,8 @@ class AdminBase(BaseModel):
     full_name: str
     email: EmailStr
     password: str | bytes
+    accountStatus: AccountStatus = AccountStatus.ACTIVE
+    permissionList: Optional[PermissionList] = None
 
 
 class AdminLogin(BaseModel):

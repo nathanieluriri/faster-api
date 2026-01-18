@@ -9,6 +9,8 @@ class UserBase(BaseModel):
     loginType:LoginType
     email:EmailStr
     password:str | bytes
+    accountStatus: AccountStatus = AccountStatus.ACTIVE
+    permissionList: Optional[PermissionList] = None
     pass
 
 class UserRefresh(BaseModel):

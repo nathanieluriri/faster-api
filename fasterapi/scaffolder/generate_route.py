@@ -113,7 +113,22 @@ def create_route_file(name: str, version: str = None, base_dir: str = None) -> b
     ]:
         if not path.exists():
             print(f"❌ {desc} file {path} not found.")
+            if desc == "Schema":
+                print(f"💡 Run: fasterapi make-schema {db_name}")
+            if desc == "Repository":
+                print(f"💡 Run: fasterapi make-crud {db_name}")
+            if desc == "Service":
+                print(f"💡 Run: fasterapi make-service {db_name}")
             return False
+
+    if not route_path.parent.exists():
+        print(f"❌ API version folder {route_path.parent} not found.")
+        print("💡 Create an API version folder like api/v1 before generating routes.")
+        return False
+
+    if route_path.exists():
+        print(f"⚠️  Route already exists: {route_path}")
+        return False
     
     # Dynamically import schema to verify models
     

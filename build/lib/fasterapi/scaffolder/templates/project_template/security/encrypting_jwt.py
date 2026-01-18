@@ -87,21 +87,16 @@ def create_jwt_token(
 
 
 
-async def create_jwt_member_token(token):
-    secrets = await get_secret_and_header()
-    SECRET_KEYS= secrets['SECRET_KEY']
-    headers= secrets['HEADERS']
-    
+async def create_jwt_member_token(token: str, userId: str):
     payload = {
-        'accessToken': token,
-        'role':'member',
-        'exp': datetime.now(timezone.utc) + datetime(minutes=15)
+        "accessToken": token,
+        "role": "member",
+        "userId": userId,
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=15),
     }
-    
-    
-    token = jwt.encode(payload, SECRET_KEYS[headers['kid']], algorithm='HS256', headers=headers)
 
-    return token
+    encoded_jwt = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+    return encoded_jwt
 
 async def create_jwt_admin_token(token: str,userId:str):
     payload = {

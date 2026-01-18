@@ -7,8 +7,8 @@ fasterapi/__init__.py
 fasterapi/__version__.py
 fasterapi/cli.py
 fasterapi/scaffolder/__init__.py
+fasterapi/scaffolder/generate_account.py
 fasterapi/scaffolder/generate_crud.py
-fasterapi/scaffolder/generate_dependencies.py
 fasterapi/scaffolder/generate_project.py
 fasterapi/scaffolder/generate_route.py
 fasterapi/scaffolder/generate_schema.py
@@ -60,6 +60,7 @@ fasterapi/scaffolder/templates/project_template/security/tokens.py
 fasterapi/scaffolder/templates/project_template/server_automations/setup-ngnix-letsencryp.sh
 fasterapi/scaffolder/templates/project_template/services/__init__.py
 fasterapi/scaffolder/templates/project_template/services/admin_service.py
+fasterapi/scaffolder/templates/project_template/services/auth_helpers.py
 fasterapi/scaffolder/templates/project_template/services/email_service.py
 fasterapi/scaffolder/templates/project_template/services/user_service.py
 nats_fasterapi.egg-info/PKG-INFO

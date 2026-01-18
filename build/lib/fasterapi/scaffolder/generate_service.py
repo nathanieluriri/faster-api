@@ -5,6 +5,32 @@ def create_service_file(name: str):
     repo_module = f"repositories.{db_name}"
     schema_module = f"schemas.{db_name}"
     service_path = Path.cwd() / "services" / f"{db_name}_service.py"
+    schema_path = Path.cwd() / "schemas" / f"{db_name}.py"
+    repo_path = Path.cwd() / "repositories" / f"{db_name}.py"
+
+    missing_dirs = [
+        directory
+        for directory in ["schemas", "repositories", "services"]
+        if not (Path.cwd() / directory).exists()
+    ]
+    if missing_dirs:
+        print(f"❌ Missing project directories: {', '.join(missing_dirs)}")
+        print("💡 Are you running this inside a FasterAPI project root?")
+        return False
+
+    if not schema_path.exists():
+        print(f"❌ Schema file {schema_path} not found.")
+        print(f"💡 Run: fasterapi make-schema {db_name}")
+        return False
+
+    if not repo_path.exists():
+        print(f"❌ Repository file {repo_path} not found.")
+        print(f"💡 Run: fasterapi make-crud {db_name}")
+        return False
+
+    if service_path.exists():
+        print(f"⚠️  Service already exists: services/{db_name}_service.py")
+        return False
 
     class_name = "".join([part.capitalize() for part in db_name.split("_")])
     create_class_name = f"{class_name}Create"
@@ -118,4 +144,5 @@ async def update_{db_name}_by_id({db_name}_id: str, {db_name}_data: {update_clas
     with open(service_path, "w",encoding="utf-8") as f:
         f.write(service_code)
 
-    print(f"✅ Service for '{db_name}' created at services/{db_name}_services.py")
+    print(f"✅ Service for '{db_name}' created at services/{db_name}_service.py")
+    return True
