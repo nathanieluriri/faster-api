@@ -1,6 +1,6 @@
 import bcrypt
 
-def hash_password(password: str|bytes) -> bytes:
+def hash_password(password: str|bytes) -> bytes: # type: ignore
     if type(password)==str:
         salt = bcrypt.gensalt()
         hashed = bcrypt.hashpw(password.encode('utf-8'), salt)

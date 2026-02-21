@@ -30,6 +30,13 @@ async def create_intent(payload: PaymentIntentIn, principal: AuthPrincipal = Dep
 @router.post("/webhooks/{provider}")
 @document_response(message="Webhook processed")
 async def payment_webhook(provider: str, request: Request):
+    """
+    Receive payment webhooks for a specific provider.
+
+    Accepted `provider` path values:
+    - `stripe`
+    - `flutterwave`
+    """
     body = await request.body()
     headers = {k: v for k, v in request.headers.items()}
     return await process_webhook(provider_name=provider, body=body, headers=headers)

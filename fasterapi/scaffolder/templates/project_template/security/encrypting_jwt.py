@@ -10,6 +10,7 @@ from bson import ObjectId
 
 load_dotenv()
 SECRETID = os.getenv("SECRETID")
+
 # Token lifetime (in minutes)
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 # Secret key for signing (use env var in production)
@@ -31,8 +32,8 @@ ALGORITHM = "HS256"
 
 async def get_secret_dict()->dict:
     result =await db.secret_keys.find_one({"_id":ObjectId(SECRETID)})
-    result.pop('_id')
-    return result
+    result.pop('_id') # type: ignore
+    return result # type: ignore
 
 
 

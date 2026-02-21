@@ -80,7 +80,7 @@ async def check_admin_account_status_and_permissions(
     _validate_permission_list(permission_list)
 
     if not _has_permission(
-        permission_list=permission_list,
+        permission_list=permission_list, # type: ignore
         permission_key=permission_key,
         endpoint_name=endpoint_name,
         request_method=request_method,
@@ -130,7 +130,7 @@ async def check_user_account_status_and_permissions(
     _validate_permission_list(permission_list)
 
     if not _has_permission(
-        permission_list=permission_list,
+        permission_list=permission_list, # type: ignore
         permission_key=permission_key,
         endpoint_name=endpoint_name,
         request_method=request_method,

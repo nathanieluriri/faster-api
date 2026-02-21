@@ -17,7 +17,7 @@ async def generate_member_access_tokens(userId)->accessTokenOut:
         raise   HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid User Id")    
 
     new_access_token = await add_access_tokens(token_data=accessTokenCreate(userId=userId))
-    new_access_token.accesstoken = await create_jwt_member_token(token=new_access_token.accesstoken, userId=userId)
+    new_access_token.accesstoken = await create_jwt_member_token(token=new_access_token.accesstoken, userId=userId) # type: ignore
     
     return new_access_token
 
@@ -32,7 +32,7 @@ async def generate_admin_access_tokens(userId)->accessTokenOut:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid User Id")    # or raise an error / log it    
 
     new_access_token = await add_admin_access_tokens(token_data=accessTokenCreate(userId=userId))
-    new_access_token.accesstoken = await create_jwt_admin_token(token=new_access_token.accesstoken,userId=userId)
+    new_access_token.accesstoken = await create_jwt_admin_token(token=new_access_token.accesstoken,userId=userId) # type: ignore
     return new_access_token
     
     
@@ -93,7 +93,7 @@ async def validate_admin_accesstoken_otp(accessToken:str):
     decodedAccessToken = await decode_jwt_token(token=accessToken)
     print(decodedAccessToken)
     try:
-        obj_id = ObjectId(decodedAccessToken['accessToken'])
+        obj_id = ObjectId(decodedAccessToken['accessToken']) # type: ignore
     except errors.InvalidId:
         
         return None  # or raise an error / log it    
@@ -133,7 +133,7 @@ async def validate_expired_admin_accesstoken(accessToken:str):
 
     decodedAccessToken = await decode_jwt_token_without_expiration(token=accessToken)
     try:
-        obj_id = ObjectId(decodedAccessToken['accessToken'])
+        obj_id = ObjectId(decodedAccessToken['accessToken']) # type: ignore
     except errors.InvalidId:
         return None  # or raise an error / log it    
 

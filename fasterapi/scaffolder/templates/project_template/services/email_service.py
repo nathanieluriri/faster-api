@@ -33,7 +33,7 @@ if missing_vars:
 EMAIL_USERNAME = os.getenv("EMAIL_USERNAME")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 EMAIL_HOST = os.getenv("EMAIL_HOST")
-EMAIL_PORT = int(os.getenv("EMAIL_PORT"))  # Cast after check
+EMAIL_PORT = int(os.getenv("EMAIL_PORT"))  # type: ignore # Cast after check
 
 # ------------------- Email Sending Function -------------------
 
@@ -112,16 +112,16 @@ This is an automated message sent to tell {firstName} that there was a new sign 
 """
 
         send_html_email_optimized(
-            sender_email=EMAIL_USERNAME,
+            sender_email=EMAIL_USERNAME, # type: ignore
             sender_display_name="Aperture Security",
             receiver_email=receiver_email,
             subject="new sign in",
             html_content=html_body,
             plain_text_content=plain_text,
-            smtp_server=EMAIL_HOST,
+            smtp_server=EMAIL_HOST, # type: ignore
             smtp_port=EMAIL_PORT,
-            smtp_login=EMAIL_USERNAME,
-            smtp_password=EMAIL_PASSWORD
+            smtp_login=EMAIL_USERNAME, # type: ignore
+            smtp_password=EMAIL_PASSWORD # type: ignore
         )
 
     except Exception as e:
@@ -140,16 +140,16 @@ def send_otp(otp: str, user_email:str,):
         plain_text = f"""Hello, {user_email} use {otp} to login  """
 
         send_html_email_optimized(
-            sender_email=EMAIL_USERNAME,
+            sender_email=EMAIL_USERNAME, # type: ignore
             sender_display_name="Aperture Security",
             receiver_email=user_email,
             subject="OTP",
             html_content=html_body,
             plain_text_content=plain_text,
-            smtp_server=EMAIL_HOST,
+            smtp_server=EMAIL_HOST, # type: ignore
             smtp_port=EMAIL_PORT,
-            smtp_login=EMAIL_USERNAME,
-            smtp_password=EMAIL_PASSWORD
+            smtp_login=EMAIL_USERNAME, # type: ignore
+            smtp_password=EMAIL_PASSWORD # type: ignore
         )
 
     except Exception as e:
@@ -169,16 +169,16 @@ def send_invite_notification(invitee_email: str, inviter_email:str,):
         plain_text = f"""Hello, {invitee_email} you have been invited to use Aperture Security EPS Booking Admin Portal """
 
         send_html_email_optimized(
-            sender_email=EMAIL_USERNAME,
+            sender_email=EMAIL_USERNAME, # type: ignore
             sender_display_name="Aperture Security",
             receiver_email=invitee_email,
             subject="Admin App Invitation",
             html_content=html_body,
             plain_text_content=plain_text,
-            smtp_server=EMAIL_HOST,
+            smtp_server=EMAIL_HOST, # type: ignore
             smtp_port=EMAIL_PORT,
-            smtp_login=EMAIL_USERNAME,
-            smtp_password=EMAIL_PASSWORD
+            smtp_login=EMAIL_USERNAME, # type: ignore
+            smtp_password=EMAIL_PASSWORD # type: ignore
         )
 
     except Exception as e:
@@ -196,16 +196,16 @@ def send_revoke_notification(revoked_user_email: str, revoked_by_email:str,):
         plain_text = f"""Hello, {revoked_user_email} your access has been revoked to use Aperture Security EPS Booking Admin Portal """
 
         send_html_email_optimized(
-            sender_email=EMAIL_USERNAME,
+            sender_email=EMAIL_USERNAME, # type: ignore
             sender_display_name="Aperture Security",
             receiver_email=revoked_user_email,
             subject="Admin App Invitation Revoked",
             html_content=html_body,
             plain_text_content=plain_text,
-            smtp_server=EMAIL_HOST,
+            smtp_server=EMAIL_HOST, # type: ignore
             smtp_port=EMAIL_PORT,
-            smtp_login=EMAIL_USERNAME,
-            smtp_password=EMAIL_PASSWORD
+            smtp_login=EMAIL_USERNAME, # type: ignore
+            smtp_password=EMAIL_PASSWORD # type: ignore
         )
 
     except Exception as e:

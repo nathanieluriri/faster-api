@@ -55,7 +55,7 @@ async def signup_new_admin(
     admin: AdminOut = Depends(check_admin_account_status_and_permissions),
 ):
     admin_data_dict = admin_data.model_dump()
-    new_admin = AdminCreate(invited_by=admin.id, **admin_data_dict)
+    new_admin = AdminCreate(invited_by=admin.id, **admin_data_dict) # type: ignore
     items = await add_admin(admin_data=new_admin)
     return items
 
@@ -63,7 +63,7 @@ async def signup_new_admin(
 @router.post("/login")
 @document_response(message="Admin login successful")
 async def login_admin(admin_data: AdminLogin):
-    items = await authenticate_admin(admin_data=admin_data)
+    items = await authenticate_admin(admin_data=admin_data) # type: ignore
     return items
 
 
@@ -115,5 +115,5 @@ async def refresh_admin_tokens(
 @router.delete("/account")
 @document_response(message="Admin account deleted successfully")
 async def delete_admin_account(admin: AdminOut = Depends(check_admin_account_status_and_permissions)):
-    result = await remove_admin(admin_id=admin.id)
+    result = await remove_admin(admin_id=admin.id) # type: ignore
     return result

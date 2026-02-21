@@ -116,5 +116,5 @@ async def refresh_user_tokens(
 @router.delete("/account")
 @document_response(message="User account deleted successfully")
 async def delete_user_account(user: UserOut = Depends(check_user_account_status_and_permissions)):
-    result = await remove_user(user_id=user.id)
+    result = await remove_user(user_id=user.id) # type: ignore
     return result

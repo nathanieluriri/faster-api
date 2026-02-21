@@ -53,7 +53,7 @@ if DB_TYPE == "sqlite":
                 return cursor.rowcount
 
         @staticmethod
-        def __delete(table_name: str, filter_dict: dict, limit: int = None):
+        def __delete(table_name: str, filter_dict: dict, limit: int = None): # type: ignore
             if not table_name.isidentifier():
                 raise ValueError("Invalid table name")
 
@@ -80,7 +80,7 @@ if DB_TYPE == "sqlite":
                 return cursor.rowcount
 
         def insert_one(self, data: dict) -> str:
-            return self.__insert(table_name=self.table_name, data=data)
+            return self.__insert(table_name=self.table_name, data=data) # type: ignore
 
         def update_one(self, filter_dict: dict, data: dict) -> int:
             return self.__update(filter_dict=filter_dict, table_name=self.table_name, data=data)
@@ -88,7 +88,7 @@ if DB_TYPE == "sqlite":
         def delete_one(self, filter_dict: dict) -> int:
             return self.__delete(table_name=self.table_name, filter_dict=filter_dict, limit=1)
 
-        def delete_many(self, filter_dict: dict, limit: int = None) -> int:
+        def delete_many(self, filter_dict: dict, limit: int = None) -> int: # type: ignore
             return self.__delete(table_name=self.table_name, filter_dict=filter_dict, limit=limit)
 
         def find_one(self, filter_dict: dict) -> dict:
@@ -103,9 +103,9 @@ if DB_TYPE == "sqlite":
                 query = f"SELECT * FROM {self.table_name} WHERE {where_clause} LIMIT 1"
                 cursor.execute(query, values)
                 row = cursor.fetchone()
-                return dict(row) if row else None
+                return dict(row) if row else None # type: ignore
 
-        def find(self, filter_dict: dict = None, limit: int = None, skip: int = None) -> list:
+        def find(self, filter_dict: dict = None, limit: int = None, skip: int = None) -> list: # type: ignore
             with sqlite3.connect(database_name) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
@@ -145,7 +145,7 @@ elif DB_TYPE == "mongodb":
     MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
 
     client = AsyncIOMotorClient(MONGO_URL)
-    db = client[DB]
+    db = client[DB] # type: ignore
 
 else:
     raise ValueError("Unsupported DB_TYPE. Must be either 'sqlite' or 'mongodb'.")

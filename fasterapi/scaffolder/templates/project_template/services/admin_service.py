@@ -25,7 +25,7 @@ async def add_admin(admin_data: AdminCreate) -> AdminOut:
     admin =  await get_admin(filter_dict={"email":admin_data.email})
     if admin==None:
         new_admin= await create_admin(admin_data)
-        access_token, refresh_token = await issue_tokens_for_user(user_id=new_admin.id, role="admin")
+        access_token, refresh_token = await issue_tokens_for_user(user_id=new_admin.id, role="admin")  # type: ignore
         new_admin.password=""
         new_admin.access_token= access_token
         new_admin.refresh_token = refresh_token
@@ -37,9 +37,9 @@ async def authenticate_admin(admin_data:AdminBase )->AdminOut:
     admin = await get_admin(filter_dict={"email":admin_data.email})
 
     if admin != None:
-        if check_password(password=admin_data.password,hashed=admin.password ):
+        if check_password(password=admin_data.password,hashed=admin.password ):  # type: ignore
             admin.password=""
-            access_token, refresh_token = await issue_tokens_for_user(user_id=admin.id, role="admin")
+            access_token, refresh_token = await issue_tokens_for_user(user_id=admin.id, role="admin") # type: ignore
             admin.access_token=  access_token
             admin.refresh_token = refresh_token
             return admin
@@ -56,7 +56,7 @@ async def refresh_admin_tokens_reduce_number_of_logins(admin_refresh_data:AdminR
             admin = await get_admin(filter_dict={"_id":ObjectId(refreshObj.userId)})
             
             if admin!= None:
-                    access_token, refresh_token = await issue_tokens_for_user(user_id=admin.id, role="admin")
+                    access_token, refresh_token = await issue_tokens_for_user(user_id=admin.id, role="admin") # type: ignore
                     admin.access_token= access_token
                     admin.refresh_token = refresh_token
                     await delete_access_token(accessToken=expired_access_token)

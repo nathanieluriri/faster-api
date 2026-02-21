@@ -38,7 +38,7 @@ class AdminUpdate(BaseModel):
     # Add other fields here 
     password:Optional[str | bytes]=None
     last_updated: int = Field(default_factory=lambda: int(time.time()))
-    @model_validator(mode='after')
+    @model_validator(mode='after') # type: ignore
     def obscure_password(self):
         if self.password:
             self.password=hash_password(self.password)
