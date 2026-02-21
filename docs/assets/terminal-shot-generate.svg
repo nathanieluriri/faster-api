@@ -1,0 +1,28 @@
+<svg width="1180" height="690" viewBox="0 0 1180 690" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Terminal screenshot generating modules with FasterAPI">
+  <rect width="1180" height="690" rx="18" fill="#0D1117"/>
+  <rect x="16" y="16" width="1148" height="58" rx="10" fill="#161B22"/>
+  <circle cx="48" cy="45" r="9" fill="#F85149"/>
+  <circle cx="76" cy="45" r="9" fill="#F2CC60"/>
+  <circle cx="104" cy="45" r="9" fill="#3FB950"/>
+  <text x="590" y="51" text-anchor="middle" fill="#8B949E" font-size="20" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace">bash • faster-api</text>
+
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="23">
+    <text x="40" y="128" fill="#7EE787">$ pip install nats-fasterapi</text>
+    <text x="40" y="170" fill="#C9D1D9">Successfully installed nats-fasterapi-0.2.90</text>
+
+    <text x="40" y="238" fill="#7EE787">$ fasterapi make-schema user</text>
+    <text x="40" y="280" fill="#79C0FF">✔ created schemas/user_schema.py</text>
+
+    <text x="40" y="348" fill="#7EE787">$ fasterapi make-crud user</text>
+    <text x="40" y="390" fill="#79C0FF">✔ created repositories/user_repo.py</text>
+
+    <text x="40" y="458" fill="#7EE787">$ fasterapi make-service user</text>
+    <text x="40" y="500" fill="#79C0FF">✔ created services/user_service.py</text>
+
+    <text x="40" y="568" fill="#7EE787">$ fasterapi make-route user --version-mode highest-number</text>
+    <text x="40" y="610" fill="#79C0FF">✔ created api/v1/user_route.py</text>
+
+    <text x="40" y="658" fill="#7EE787">$ </text>
+    <rect x="70" y="639" width="14" height="26" fill="#58A6FF"/>
+  </g>
+</svg>

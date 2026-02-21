@@ -1,0 +1,38 @@
+<svg width="1180" height="760" viewBox="0 0 1180 760" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Terminal screenshot showing fasterapi help output">
+  <rect width="1180" height="760" rx="18" fill="#0D1117"/>
+  <rect x="16" y="16" width="1148" height="58" rx="10" fill="#161B22"/>
+  <circle cx="48" cy="45" r="9" fill="#F85149"/>
+  <circle cx="76" cy="45" r="9" fill="#F2CC60"/>
+  <circle cx="104" cy="45" r="9" fill="#3FB950"/>
+  <text x="590" y="51" text-anchor="middle" fill="#8B949E" font-size="20" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace">bash • faster-api</text>
+
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="22">
+    <text x="40" y="128" fill="#7EE787">$ fasterapi --help</text>
+
+    <text x="40" y="184" fill="#C9D1D9">Usage: fasterapi [OPTIONS] COMMAND [ARGS]...</text>
+    <text x="40" y="226" fill="#8B949E">Scaffold and supercharge your FastAPI projects</text>
+
+    <text x="40" y="290" fill="#F2CC60">Options</text>
+    <text x="40" y="332" fill="#C9D1D9">-v, --version  Show FasterAPI version and exit</text>
+    <text x="40" y="374" fill="#C9D1D9">--help         Show this message and exit</text>
+
+    <text x="40" y="438" fill="#F2CC60">Commands</text>
+    <text x="40" y="480" fill="#79C0FF">make-schema</text>
+    <text x="280" y="480" fill="#8B949E">Generate Pydantic schemas</text>
+
+    <text x="40" y="520" fill="#79C0FF">make-crud</text>
+    <text x="280" y="520" fill="#8B949E">Generate CRUD repository functions</text>
+
+    <text x="40" y="560" fill="#79C0FF">make-service</text>
+    <text x="280" y="560" fill="#8B949E">Generate service layer templates</text>
+
+    <text x="40" y="600" fill="#79C0FF">make-route</text>
+    <text x="280" y="600" fill="#8B949E">Generate route files with versioning</text>
+
+    <text x="40" y="640" fill="#79C0FF">mount</text>
+    <text x="280" y="640" fill="#8B949E">Mount routes into main.py</text>
+
+    <text x="40" y="700" fill="#7EE787">$ </text>
+    <rect x="70" y="681" width="14" height="26" fill="#58A6FF"/>
+  </g>
+</svg>

@@ -1,0 +1,42 @@
+<svg width="1280" height="640" viewBox="0 0 1280 640" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="FasterAPI hero banner">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="640" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0D1117"/>
+      <stop offset="1" stop-color="#111C2D"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="135" y1="140" x2="915" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#58A6FF" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#3FB950" stop-opacity="0.20"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="0" width="200%" height="200%">
+      <feDropShadow dx="0" dy="20" stdDeviation="22" flood-color="#020409" flood-opacity="0.55"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <circle cx="1120" cy="120" r="220" fill="#1F6FEB" opacity="0.18"/>
+  <circle cx="150" cy="570" r="260" fill="#238636" opacity="0.16"/>
+
+  <g filter="url(#shadow)">
+    <rect x="120" y="110" width="1040" height="420" rx="24" fill="#0B1320" stroke="#2F3D50"/>
+    <rect x="120" y="110" width="1040" height="68" rx="24" fill="#111B2B"/>
+    <rect x="120" y="154" width="1040" height="376" fill="url(#accent)" opacity="0.64"/>
+    <circle cx="170" cy="144" r="9" fill="#F85149"/>
+    <circle cx="198" cy="144" r="9" fill="#F2CC60"/>
+    <circle cx="226" cy="144" r="9" fill="#3FB950"/>
+  </g>
+
+  <text x="170" y="280" fill="#F0F6FC" font-size="84" font-family="Segoe UI, Ubuntu, Helvetica, Arial, sans-serif" font-weight="700">FasterAPI</text>
+  <text x="170" y="338" fill="#8B949E" font-size="28" font-family="Segoe UI, Ubuntu, Helvetica, Arial, sans-serif">Scaffold FastAPI apps with production-ready boilerplate in minutes</text>
+
+  <g>
+    <rect x="170" y="392" width="216" height="48" rx="12" fill="#1F6FEB"/>
+    <text x="278" y="423" text-anchor="middle" fill="#F0F6FC" font-size="20" font-family="Segoe UI, Ubuntu, Helvetica, Arial, sans-serif" font-weight="600">CLI Scaffolding</text>
+
+    <rect x="404" y="392" width="240" height="48" rx="12" fill="#238636"/>
+    <text x="524" y="423" text-anchor="middle" fill="#F0F6FC" font-size="20" font-family="Segoe UI, Ubuntu, Helvetica, Arial, sans-serif" font-weight="600">Route Versioning</text>
+
+    <rect x="662" y="392" width="214" height="48" rx="12" fill="#9E6A03"/>
+    <text x="769" y="423" text-anchor="middle" fill="#F0F6FC" font-size="20" font-family="Segoe UI, Ubuntu, Helvetica, Arial, sans-serif" font-weight="600">Auth Utilities</text>
+  </g>
+</svg>

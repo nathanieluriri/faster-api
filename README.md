@@ -1,250 +1,148 @@
-# ⚡ FasterAPI — Scaffold FastAPI Apps with Ease
+<div align="center">
+  <img src="https://raw.githubusercontent.com/nathanieluriri/faster-api/main/docs/assets/fasterapi-hero.svg" alt="FasterAPI banner" width="100%" />
 
-`nats-fasterapi` is a **CLI tool** that helps you scaffold and supercharge FastAPI projects.  
+  <h1>FasterAPI</h1>
+  <p><strong>Scaffold FastAPI APIs faster with a focused CLI for backend teams.</strong></p>
 
-It generates schemas, CRUD repositories, services, routes, and authentication utilities — so you can focus on building features instead of repetitive boilerplate. Think of it as a **FastAPI project generator + productivity booster 🚀**.  
+  <p>
+    <a href="https://pypi.org/project/nats-fasterapi/"><img src="https://img.shields.io/pypi/v/nats-fasterapi?label=PyPI&color=0A66C2" alt="PyPI Version" /></a>
+    <a href="https://pypi.org/project/nats-fasterapi/"><img src="https://img.shields.io/pypi/pyversions/nats-fasterapi" alt="Python Versions" /></a>
+    <a href="LICENSE"><img src="https://img.shields.io/github/license/nathanieluriri/faster-api" alt="License" /></a>
+    <a href="https://pypi.org/project/nats-fasterapi/"><img src="https://img.shields.io/pypi/dm/nats-fasterapi" alt="Monthly Downloads" /></a>
+    <a href="https://github.com/nathanieluriri/faster-api"><img src="https://img.shields.io/github/last-commit/nathanieluriri/faster-api" alt="Last Commit" /></a>
+  </p>
 
+  <p>
+    <a href="#quick-start"><strong>Quick Start</strong></a>
+    ·
+    <a href="#demo"><strong>Demo</strong></a>
+    ·
+    <a href="#command-reference"><strong>Command Reference</strong></a>
+    ·
+    <a href="#contributing"><strong>Contributing</strong></a>
+  </p>
+</div>
 
-## ✨ Features
+## Why FasterAPI
 
-- 🏗️ Generate **Pydantic schemas** with a single command.  
-- 🗄️ Generate **CRUD repositories** backed by MongoDB (`motor`), Redis, or custom logic.  
-- 🔧 Generate **service layers** to connect repositories and routes.  
-- 🌐 Generate **API routes** with versioning support (`latest-modified` / `highest-number`).  
-- 🔑 Generate **token-based authentication utilities** (repository + dependencies).  
-- ⚡ **Mount routes automatically** into `main.py`.  
-- 🎯 Interactive prompts or automation-friendly `-y` (yes) flag.  
-- 📦 Designed for **scalable microservices** using FastAPI.  
+`nats-fasterapi` helps you skip repetitive setup and move straight to business logic.
 
----
+- Generate Pydantic schemas with one command
+- Generate CRUD repositories and service layers
+- Generate versioned FastAPI routes quickly
+- Generate token repository and auth dependency utilities
+- Auto-mount routes into `main.py`
+- Works in interactive and automation-friendly flows
 
-## 📦 Installation
+## Demo
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/nathanieluriri/faster-api/main/docs/assets/fasterapi-demo.gif" alt="FasterAPI CLI demo" width="100%" />
+</p>
+
+## CLI Preview Screens
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/nathanieluriri/faster-api/main/docs/assets/terminal-shot-generate.svg" alt="Generating schema CRUD service and route" width="100%" />
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/nathanieluriri/faster-api/main/docs/assets/terminal-shot-help.svg" alt="FasterAPI help output screenshot" width="100%" />
+</p>
+
+## Installation
 
 ```bash
 pip install nats-fasterapi
-````
+```
 
-Upgrade to the latest version anytime:
+Upgrade:
 
 ```bash
 fasterapi update
 ```
 
----
-
-## 🚀 Usage
-
-Run `fasterapi --help` to see all available commands:
-
-```
-Usage: fasterapi [OPTIONS] COMMAND [ARGS]...
-
-  ⚡ FasterAPI CLI — Scaffold and supercharge your FastAPI projects
-
-Options:
-  -v, --version  Show the FasterAPI version and exit
-  --help         Show this message and exit
-
-Commands:
-  make-crud       Generate CRUD repository functions
-  make-schema     Generate Pydantic schemas
-  make-service    Generate service layer templates
-  make-route      Generate route files (with versioning)
-  make-token-repo Generate token repository for roles
-  make-token-deps Generate token dependency utilities
-  mount           Mount routes into main.py
-  run-d           Run the dev server (uvicorn --reload)
-  update          Upgrade FasterAPI CLI to latest
-```
-
----
-
-## 🛠️ Commands Overview
-
-### `make-schema`
-
-Generate a Pydantic schema.
+## Quick Start
 
 ```bash
+# 1) Create a schema
 fasterapi make-schema user
-```
 
-✅ Good:
-
-```bash
-fasterapi make-schema product
-```
-
-❌ Bad:
-
-```bash
-fasterapi make-schema User   # Avoid uppercase
-fasterapi make-schema        # Missing name
-```
-
----
-
-### `make-crud`
-
-Generate CRUD repository functions for a schema.
-
-```bash
+# 2) Generate repository and service
 fasterapi make-crud user
-```
-
----
-
-### `make-service`
-
-Generate a service layer for a schema.
-
-```bash
 fasterapi make-service user
-```
 
----
+# 3) Generate a versioned route
+fasterapi make-route user --version-mode highest-number
 
-### `make-route`
-
-Generate an API route with a versioning strategy.
-
-```bash
-fasterapi make-route user --version-mode latest-modified
-fasterapi make-route product --version-mode highest-number
-fasterapi make-route order      # Will ask interactively
-fasterapi make-route order -y   # Skips prompt, defaults to highest-number
-```
-
----
-
-### `make-token-repo`
-
-Generate a token repository for authentication.
-
-```bash
-fasterapi make-token-repo admin user staff
-```
-
-If no roles are provided, it defaults to:
-
-```
-admin, user, staff, guest-editor
-```
-
----
-
-### `make-token-deps`
-
-Generate token dependency utilities.
-
-```bash
-fasterapi make-token-deps
-```
-
----
-
-### `mount`
-
-Mount all API routes into `main.py`.
-
-```bash
+# 4) Mount routes into main.py
 fasterapi mount
 ```
 
----
-
-### `run-d`
-
-Run the development server with uvicorn.
+Run the app in development mode:
 
 ```bash
 fasterapi run-d
 ```
 
-Equivalent to:
+## Command Reference
+
+| Command | Purpose |
+| --- | --- |
+| `make-schema <name>` | Generate a Pydantic schema |
+| `make-crud <name>` | Generate CRUD repository functions |
+| `make-service <name>` | Generate service layer template |
+| `make-route <name> [--version-mode ...]` | Generate route files with API versioning |
+| `make-token-repo [roles...]` | Generate token repository for roles |
+| `make-token-deps` | Generate token dependency utilities |
+| `mount` | Mount routes into `main.py` |
+| `run-d` | Run dev server (`uvicorn main:app --reload`) |
+| `update` | Upgrade FasterAPI CLI |
+
+### Route Versioning Modes
+
+- `highest-number`
+- `latest-modified`
+
+### Token Repo Defaults
+
+If no roles are provided to `make-token-repo`, defaults are:
+
+`admin, user, staff, guest-editor`
+
+## Typical Workflow
 
 ```bash
-uvicorn main:app --reload
+fasterapi make-schema product
+fasterapi make-crud product
+fasterapi make-service product
+fasterapi make-route product --version-mode latest-modified
+fasterapi mount
+fasterapi run-d
 ```
 
----
+## Roadmap
 
-### `update`
+- `fasterapi new myproject` full project bootstrap
+- SQLAlchemy repository generators (PostgreSQL/MySQL)
+- Config-driven scaffolding via `fasterapi.yaml`
+- CI/CD template generation
+- Better Docker/Docker Compose scaffolding
+- Shell autocompletion support
 
-Upgrade FasterAPI CLI to the latest version.
-
-```bash
-fasterapi update
-```
-
----
-
-## 👨‍💻 Development
-
-Clone the repository and install it in editable mode:
+## Contributing
 
 ```bash
-git clone https://github.com/yourusername/nats-fasterapi.git
-cd nats-fasterapi
+git clone https://github.com/nathanieluriri/faster-api.git
+cd faster-api
 pip install -e .
-```
-
-Run tests:
-
-```bash
 pytest
 ```
 
----
+Issues and pull requests are welcome.
 
-## 🛣️ Roadmap
+## License
 
-Here’s what’s coming next for FasterAPI 🚀:
+Licensed under the [MIT License](LICENSE).
 
-### Database Support
-
-* [ ] SQLAlchemy (PostgreSQL / MySQL) repository generator
-* [ ] SQLite lightweight repository scaffolding
-* [ ] Cassandra & DynamoDB templates
-* [ ] Neo4j graph database integration
-
-### Global Config Support
-
-* [ ] Central config file (`fasterapi.yaml`) to scaffold schema, repo, service, and routes automatically
-* [ ] Environment-specific overrides for config-driven scaffolding
-
-### Authentication Enhancements
-
-* [ ] Social logins (Google, GitHub, Facebook, Twitter) with OAuth2
-* [ ] JWT refresh token rotation utilities
-* [ ] API key and HMAC authentication scaffolding
-
-### Project Scaffolding
-
-* [ ] `fasterapi new myproject` to bootstrap a full FastAPI project
-* [ ] Opinionated folder structure with best practices baked in
-
-### DX (Developer Experience) Improvements
-
-* [ ] Global `--yes` flag (applies to all commands for CI/CD)
-* [ ] Configurable templates for schema, CRUD, services, routes
-* [ ] Built-in Dockerfile & `docker-compose` scaffolding
-* [ ] Built-in GitHub Actions CI/CD workflow generator
-
-### Other Ideas
-
-* [ ] CLI autocompletion for bash/zsh/fish
-* [ ] Schema-first API generator (OpenAPI → code scaffolding)
-* [ ] Hot reload template customization
-
----
-
-## 📄 License
-
-This project is licensed under the **MIT License**.
-See the [LICENSE](LICENSE) file for details.
-
-© 2025 Nathaniel Uriri
-
-```
-```
+© 2026 Nathaniel Uriri
