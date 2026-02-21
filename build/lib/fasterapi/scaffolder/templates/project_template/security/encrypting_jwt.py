@@ -2,6 +2,7 @@ import jwt
  
 from datetime import timedelta, timezone,datetime
 from core.database import db
+from core.settings import get_settings
 from dotenv import load_dotenv
 import os
 from pydantic import BaseModel
@@ -25,7 +26,7 @@ class JWTPayload(BaseModel):
     exp: datetime
     iat: datetime
 
-SECRET_KEY = "super-secure-secret-key"
+SECRET_KEY = get_settings().secret_key or "dev-only-insecure-secret"
 ALGORITHM = "HS256"
 
 async def get_secret_dict()->dict:

@@ -20,7 +20,7 @@ class accessTokenCreate(accessTokenBase):
 class accessTokenOut(accessTokenBase):
     dateCreated: int = Field(default_factory=lambda: int(time.time()))
     accesstoken: Optional[str] =None
-    role:Optional[str]="annonymous"
+    role:Optional[str]="anonymous"
     @model_validator(mode='before')
     def set_values(cls,values):
         if values is None:

@@ -124,7 +124,7 @@ async def update_admin_by_id(admin_id: str, admin_data: AdminUpdate,is_password_
     Returns:
         _type_: AdminOut
     """
-    from celery_worker import celery_app
+    from core.queue.manager import QueueManager
 
     if not ObjectId.is_valid(admin_id):
         raise HTTPException(status_code=400, detail="Invalid admin ID format")
@@ -135,7 +135,7 @@ async def update_admin_by_id(admin_id: str, admin_data: AdminUpdate,is_password_
     if not result:
         raise HTTPException(status_code=404, detail="Admin not found or update failed")
     if is_password_getting_changed==True:
-        result = celery_app.send_task("celery_worker.run_async_task",args=["delete_tokens",{"userId": admin_id} ])
+        QueueManager.get_instance().enqueue("delete_tokens", {"userId": admin_id})
     return result
 
 

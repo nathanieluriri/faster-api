@@ -1,138 +1,45 @@
-Here's a clean, professional, and informative `README.md` template tailored for your `fasterapi` scaffolding tool and FastAPI CRUD project setup.
+# FasterAPI Project Template
 
----
+This scaffold is a production-ready FastAPI starter with:
 
-### ✅ `README.md` Template
+- Envelope-based API responses (`success`, `message`, `data`, optional `meta`, `requestId`)
+- Typed auth principal dependencies (member/admin)
+- Queue abstraction with singleton manager (Celery-first)
+- Document upload abstraction (local + S3)
+- Payment abstraction (Flutterwave + Stripe)
 
-````markdown
-# 🚀 FasterAPI Scaffold CLI
+## Environment
 
-FasterAPI is a lightweight scaffolding tool that helps you quickly spin up FastAPI projects with predefined folder structures, schemas, and CRUD repository templates. It's built to save time and enforce consistency.
+Copy `.env.example` to `.env` and set required values.
 
----
+Key variables:
 
-## 📦 Features
+- `SECRET_KEY`, `SESSION_SECRET_KEY`
+- `MONGO_URL`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`
+- `STORAGE_BACKEND` (`local` or `s3`)
+- `PAYMENT_DEFAULT_PROVIDER` (`flutterwave` or `stripe`)
+- Provider secrets (`FLUTTERWAVE_SECRET_KEY`, `STRIPE_SECRET_KEY`)
 
-- Auto-generates a complete FastAPI project structure
-- Creates `schemas/` with `Base`, `Create`, `Update`, and `Out` models
-- Generates CRUD logic in `repository/`
-- CLI-powered — just type and scaffold
+## New API Modules
 
----
+- `GET/POST/DELETE /v1/documents/*`
+- `POST/GET /v1/payments/*`
 
-## 🏗️ How the Project Was Created
+## Queue Usage
 
-This project was scaffolded using the `fasterapi` CLI tool:
+Use the queue manager instead of calling Celery directly:
 
-```bash
-fasterapi make_project my_project
-cd my_project
-````
+```python
+from core.queue.manager import QueueManager
 
-To generate schema and repo files:
-
-```bash
-fasterapi make_repo user_profile
+QueueManager.get_instance().enqueue("delete_tokens", {"userId": user_id})
 ```
 
-This will create:
+## Response Documentation
 
-```
-schemas/user_profile.py
-repository/user_profile.py
-```
+Use `document_response` helpers in routes:
 
-The schema includes:
-
-* `UserProfileBase`
-* `UserProfileCreate` (with `date_created` and `last_updated`)
-* `UserProfileUpdate` (with `last_updated`)
-* `UserProfileOut` (with `_id`, timestamps)
-
----
-
-## 📁 Project Structure
-
-```bash
-my_project/
-├── api/
-│   └── v1/
-|       └──main.py 
-├── core/
-│   └── db.py
-├── repository/
-│   └── 
-├── schemas/
-│   └── 
-├── services/
-│   └── 
-├── security/
-│   └── auth.py
-|   └── encrypting.py
-|   └── hash.py
-|   └── tokens.py
-├── email_templates/
-│   └── new_sign_in.py
-├── main.py
-└── ...
-```
-
----
-
-## 🔧 CLI Usage
-
-
-
-use it like this:
-
-```bash
-fasterapi make_project <project_name>
-fasterapi make_repo <schema_name>
-```
-
----
-
-## 💡 Example Commands
-
-```bash
-# Create a new FastAPI project
-fasterapi make_project blog_api
-
-# Generate CRUD files for schema `post`
-fasterapi make_repo post
-```
-
----
-
-
-## 🧪 Requirements
-
-* Python 3.8+
-* FastAPI
-* Pydantic
-* MongoDB (or change the backend)
-
----
-
-## ✅ To-Do
-
-* [ ] Add support for route generation
-* [ ] Add PostgreSQL support
-* [ ] Add unit tests
-
----
-
-## 🤝 Contributing
-
-Pull requests are welcome. For major changes, please open an issue first.
-
----
-
-## 📄 License
-
-MIT License
-
-```
-
----
-
+- `@document_response(...)`
+- `@document_created(...)`
+- `@document_deleted(...)`
+- `@document_paginated(...)`

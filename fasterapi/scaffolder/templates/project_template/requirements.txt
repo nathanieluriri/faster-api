@@ -5,6 +5,8 @@ dotenv==0.9.9
 uvicorn
 python-dotenv
 pydantic
+boto3
+stripe
 redis
 motor
 flower

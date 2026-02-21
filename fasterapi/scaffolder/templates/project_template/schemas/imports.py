@@ -21,6 +21,7 @@ class Permission(BaseModel):
     name: str
     methods: List[str]
     path: str
+    key: Optional[str] = None
     description: Optional[str] = None
 
 class PermissionList(BaseModel):

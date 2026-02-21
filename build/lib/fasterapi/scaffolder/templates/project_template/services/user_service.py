@@ -139,7 +139,7 @@ async def update_user_by_id(user_id: str, user_data: UserUpdate, is_password_get
     Returns:
         _type_: UserOut
     """
-    from celery_worker import celery_app
+    from core.queue.manager import QueueManager
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid user ID format")
 
@@ -149,7 +149,7 @@ async def update_user_by_id(user_id: str, user_data: UserUpdate, is_password_get
     if not result:
         raise HTTPException(status_code=404, detail="User not found or update failed")
     if is_password_getting_changed is True:
-        result = celery_app.send_task("celery_worker.run_async_task",args=["delete_tokens",{"userId": user_id} ])
+        QueueManager.get_instance().enqueue("delete_tokens", {"userId": user_id})
     return result
 
 async def authenticate_user_google(user_data: UserBase) -> UserOut:

@@ -109,16 +109,16 @@ async def retrieve_{db_name}_by_{db_name}_id(id: str) -> {out_class_name}:
     return result
 
 
-async def retrieve_{db_name}s(start=0,stop=100) -> List[{out_class_name}]:
+async def retrieve_{db_name}s(filters: dict | None = None, start: int = 0, stop: int = 100) -> List[{out_class_name}]:
     """Retrieves {out_class_name} Objects in a list
 
     Returns:
         _type_: {out_class_name}
     """
-    return await get_{db_name}s(start=start,stop=stop)
+    return await get_{db_name}s(filter_dict=filters or {{}}, start=start, stop=stop)
 
 
-async def update_{db_name}_by_id({db_name}_id: str, {db_name}_data: {update_class_name}) -> {out_class_name}:
+async def update_{db_name}_by_id(id: str, data: {update_class_name}) -> {out_class_name}:
     """updates an entry of {db_name} in the database
 
     Raises:
@@ -128,11 +128,11 @@ async def update_{db_name}_by_id({db_name}_id: str, {db_name}_data: {update_clas
     Returns:
         _type_: {out_class_name}
     """
-    if not ObjectId.is_valid({db_name}_id):
+    if not ObjectId.is_valid(id):
         raise HTTPException(status_code=400, detail="Invalid {db_name} ID format")
 
-    filter_dict = {{"_id": ObjectId({db_name}_id)}}
-    result = await update_{db_name}(filter_dict, {db_name}_data)
+    filter_dict = {{"_id": ObjectId(id)}}
+    result = await update_{db_name}(filter_dict, data)
 
     if not result:
         raise HTTPException(status_code=404, detail="{class_name} not found or update failed")

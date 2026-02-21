@@ -56,7 +56,7 @@ async def get_{db_name}(filter_dict: dict) -> Optional[{out_class_name}]:
             detail=f"An error occurred while fetching {db_name}: {{str(e)}}"
         )
     
-async def get_{db_name}s(filter_dict: dict = {{}},start=0,stop=100) -> List[{out_class_name}]:
+async def get_{db_name}s(filter_dict: dict | None = None,start: int = 0,stop: int = 100) -> List[{out_class_name}]:
     try:
         if filter_dict is None:
             filter_dict = {{}}
@@ -77,14 +77,15 @@ async def get_{db_name}s(filter_dict: dict = {{}},start=0,stop=100) -> List[{out
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while fetching {db_name}s: {{str(e)}}"
         )
-async def update_{db_name}(filter_dict: dict, {db_name}_data: {update_class_name}) -> {out_class_name}:
+async def update_{db_name}(filter_dict: dict, {db_name}_data: {update_class_name}) -> {out_class_name} | None:
     result = await db.{db_name}s.find_one_and_update(
         filter_dict,
         {{"$set": {db_name}_data.model_dump(exclude_none=True)}},
         return_document=ReturnDocument.AFTER
     )
-    returnable_result = {out_class_name}(**result)
-    return returnable_result
+    if result is None:
+        return None
+    return {out_class_name}(**result)
 
 async def delete_{db_name}(filter_dict: dict):
     return await db.{db_name}s.delete_one(filter_dict)

@@ -137,9 +137,9 @@ def create_route_file(name: str, version: str = None, base_dir: str = None) -> b
     # NOTE: Added 'import json' to route_code and updated the list route for filters.
     route_code = f"""
 from fastapi import APIRouter, HTTPException, Query, Path, status
-from typing import List, Optional
+from typing import Optional
 import json
-from schemas.response_schema import APIResponse
+from core.response_envelope import document_response
 from schemas.{db_name} import (
     {class_name}Create,
     {class_name}Out,
@@ -160,7 +160,11 @@ router = APIRouter(prefix="/{db_name}s", tags=["{class_name}s"])
 # ------------------------------
 # List {class_name}s (with pagination and filtering)
 # ------------------------------
-@router.get("/", response_model=APIResponse[List[{class_name}Out]])
+@router.get("/")
+@document_response(
+    message="{class_name}s fetched successfully",
+    success_example=[],
+)
 async def list_{db_name}s(
     start: Optional[int] = Query(None, description="Start index for range-based pagination"),
     stop: Optional[int] = Query(None, description="Stop index for range-based pagination"),
@@ -197,7 +201,7 @@ async def list_{db_name}s(
         
         # Pass filters to the service layer
         items = await retrieve_{db_name}s(filters=parsed_filters, start=start, stop=stop)
-        return APIResponse(status_code=200, data=items, detail="Fetched successfully")
+        return items
 
     # Case 2: Use page_number if provided
     elif page_number is not None:
@@ -208,23 +212,20 @@ async def list_{db_name}s(
         stop_index = start_index + PAGE_SIZE
         # Pass filters to the service layer
         items = await retrieve_{db_name}s(filters=parsed_filters, start=start_index, stop=stop_index)
-        return APIResponse(status_code=200, data=items, detail=f"Fetched page {{page_number}} successfully")
+        return items
 
     # Case 3: Default (no params)
     else:
         # Pass filters to the service layer
         items = await retrieve_{db_name}s(filters=parsed_filters, start=0, stop=100)
-        detail_msg = "Fetched first 100 records successfully"
-        if parsed_filters:
-            # If filters were applied, adjust the detail message
-            detail_msg = f"Fetched first 100 records successfully (with filters applied)"
-        return APIResponse(status_code=200, data=items, detail=detail_msg)
+        return items
 
 
 # ------------------------------
 # Retrieve a single {class_name}
 # ------------------------------
-@router.get("/{{id}}", response_model=APIResponse[{class_name}Out])
+@router.get("/{{id}}")
+@document_response(message="{class_name} fetched successfully")
 async def get_{db_name}_by_id(
     id: str = Path(..., description="{db_name} ID to fetch specific item")
 ):
@@ -234,14 +235,18 @@ async def get_{db_name}_by_id(
     item = await retrieve_{db_name}_by_{db_name}_id(id=id)
     if not item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{class_name} not found")
-    return APIResponse(status_code=200, data=item, detail="{db_name} item fetched")
+    return item
 
 
 # ------------------------------
 # Create a new {class_name}
 # ------------------------------
 # Uses {class_name}Base for input (correctly)
-@router.post("/", response_model=APIResponse[{class_name}Out], status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED)
+@document_response(
+    message="{class_name} created successfully",
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_{db_name}(payload: {class_name}Base):
     \"""
     Creates a new {class_name}.
@@ -252,14 +257,15 @@ async def create_{db_name}(payload: {class_name}Base):
     if not new_item:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to create {db_name}")
     
-    return APIResponse(status_code=201, data=new_item, detail=f"{class_name} created successfully")
+    return new_item
 
 
 # ------------------------------
 # Update an existing {class_name}
 # ------------------------------
 # Uses PATCH for partial update (correctly)
-@router.patch("/{{id}}", response_model=APIResponse[{class_name}Out])
+@router.patch("/{{id}}")
+@document_response(message="{class_name} updated successfully")
 async def update_{db_name}(
     id: str = Path(..., description="ID of the {{db_name}} to update"),
     payload: {class_name}Update = None
@@ -272,13 +278,14 @@ async def update_{db_name}(
     if not updated_item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{class_name} not found or update failed")
     
-    return APIResponse(status_code=200, data=updated_item, detail=f"{class_name} updated successfully")
+    return updated_item
 
 
 # ------------------------------
 # Delete an existing {class_name}
 # ------------------------------
-@router.delete("/{{id}}", response_model=APIResponse[None])
+@router.delete("/{{id}}")
+@document_response(message="{class_name} deleted successfully")
 async def delete_{db_name}(id: str = Path(..., description="ID of the {db_name} to delete")):
     \"""
     Deletes an existing {class_name} by its ID.
@@ -289,7 +296,7 @@ async def delete_{db_name}(id: str = Path(..., description="ID of the {db_name} 
         # to indicate if deletion was successful (i.e., item was found).
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{class_name} not found or deletion failed")
     
-    return APIResponse(status_code=200, data=None, detail=f"{class_name} deleted successfully")
+    return None
 """
 
 
