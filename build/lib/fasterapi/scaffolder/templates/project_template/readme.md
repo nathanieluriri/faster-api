@@ -3,10 +3,11 @@
 This scaffold is a production-ready FastAPI starter with:
 
 - Envelope-based API responses (`success`, `message`, `data`, optional `meta`, `requestId`)
-- Typed auth principal dependencies (member/admin)
+- Typed auth principal dependencies (user/admin)
 - Queue abstraction with singleton manager (Celery-first)
 - Document upload abstraction (local + S3)
 - Payment abstraction (Flutterwave + Stripe)
+- Email abstraction with singleton manager, retries, logging, and queue-ready dispatch
 
 ## Environment
 
@@ -16,9 +17,20 @@ Key variables:
 
 - `SECRET_KEY`, `SESSION_SECRET_KEY`
 - `MONGO_URL`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`
+- `ROLE_RATE_LIMITS` (example: `anonymous:20/minute,user:80/minute,admin:140/minute`)
 - `STORAGE_BACKEND` (`local` or `s3`)
 - `PAYMENT_DEFAULT_PROVIDER` (`flutterwave` or `stripe`)
 - Provider secrets (`FLUTTERWAVE_SECRET_KEY`, `STRIPE_SECRET_KEY`)
+- Email settings (`EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USERNAME`, `EMAIL_PASSWORD`)
+
+## Email Workflow
+
+- Built-in project default: `email_templates/starter_template.py`
+- Add more templates with CLI: `fasterapi email add-template`
+- Mount templates into the singleton registry: `fasterapi email mount`
+- Mount custom templates from `custom_templates/`: `fasterapi email mount-custom`
+
+If mount fails, read `email_mount_errors.log` in your project root.
 
 ## New API Modules
 

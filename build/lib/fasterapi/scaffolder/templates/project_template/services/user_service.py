@@ -39,7 +39,7 @@ async def add_user(user_data: UserCreate) -> UserOut:
     user =  await get_user(filter_dict={"email":user_data.email})
     if user==None:
         new_user= await create_user(user_data)
-        access_token, refresh_token = await issue_tokens_for_user(user_id=new_user.id, role="member") # type: ignore
+        access_token, refresh_token = await issue_tokens_for_user(user_id=new_user.id, role="user") # type: ignore
         new_user.password=""
         new_user.access_token= access_token
         new_user.refresh_token = refresh_token
@@ -53,7 +53,7 @@ async def authenticate_user(user_data:UserBase )->UserOut:
     if user != None:
         if check_password(password=user_data.password,hashed=user.password ): # type: ignore
             user.password=""
-            access_token, refresh_token = await issue_tokens_for_user(user_id=user.id, role="member") # type: ignore
+            access_token, refresh_token = await issue_tokens_for_user(user_id=user.id, role="user") # type: ignore
             user.access_token= access_token
             user.refresh_token = refresh_token
             return user
@@ -69,7 +69,7 @@ async def refresh_user_tokens_reduce_number_of_logins(user_refresh_data:UserRefr
             user = await get_user(filter_dict={"_id":ObjectId(refreshObj.userId)})
             
             if user!= None:
-                    access_token, refresh_token = await issue_tokens_for_user(user_id=user.id, role="member") # type: ignore
+                    access_token, refresh_token = await issue_tokens_for_user(user_id=user.id, role="user") # type: ignore
                     user.access_token= access_token
                     user.refresh_token = refresh_token
                     await delete_access_token(accessToken=expired_access_token)
@@ -159,7 +159,7 @@ async def authenticate_user_google(user_data: UserBase) -> UserOut:
         new_user = await create_user(UserCreate(**user_data.model_dump()))
         user = new_user
 
-    access_token, refresh_token = await issue_tokens_for_user(user_id=user.id, role="member") # type: ignore
+    access_token, refresh_token = await issue_tokens_for_user(user_id=user.id, role="user") # type: ignore
     user.password = ""
     user.access_token = access_token
     user.refresh_token = refresh_token

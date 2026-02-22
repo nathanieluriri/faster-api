@@ -12,7 +12,6 @@ from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from limits import parse
 from limits.storage import RedisStorage
 from limits.strategies import FixedWindowRateLimiter
 from pymongo import MongoClient
@@ -20,6 +19,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from celery_worker import celery_app
+from core.email.manager import EmailManager
 from core.payments.manager import PaymentManager
 from core.queue.celery_provider import CeleryQueueProvider
 from core.queue.manager import QueueManager
@@ -30,6 +30,7 @@ from core.response_envelope import (
     http_exception_response,
 )
 from core.scheduler import scheduler
+from core.role_config import build_role_rate_limits, build_role_rate_limits_csv, normalize_role
 from core.settings import get_settings
 from core.storage.manager import DocumentStorageManager
 from repositories.tokens_repo import get_access_token_allow_expired
@@ -58,11 +59,11 @@ class RequestTimingMiddleware(BaseHTTPMiddleware):
         return response
 
 
-RATE_LIMITS = {
-    "anonymous": parse("20/minute"),
-    "member": parse("60/minute"),
-    "admin": parse("140/minute"),
-}
+ROLE_RATE_LIMITS_DEFAULT = build_role_rate_limits_csv(non_admin_roles=["user"])
+RATE_LIMITS = build_role_rate_limits(
+    os.getenv("ROLE_RATE_LIMITS"),
+    fallback_csv=ROLE_RATE_LIMITS_DEFAULT,
+)
 
 storage = RedisStorage(settings.redis_url)
 limiter = FixedWindowRateLimiter(storage)
@@ -80,7 +81,7 @@ async def get_user_type(request: Request) -> tuple[str, str]:
     if not access_token:
         return fallback_id, "anonymous"
 
-    user_type = (access_token.role or "anonymous").lower()
+    user_type = normalize_role(access_token.role or "anonymous")
     if user_type not in RATE_LIMITS:
         user_type = "anonymous"
 
@@ -143,6 +144,7 @@ async def lifespan(app: FastAPI):
     scheduler.start()
 
     QueueManager.configure(CeleryQueueProvider(celery_app=celery_app))
+    EmailManager.configure_from_settings()
     DocumentStorageManager.configure_from_settings()
     try:
         PaymentManager.configure_from_settings()

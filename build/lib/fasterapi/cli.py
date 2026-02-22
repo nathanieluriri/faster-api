@@ -8,6 +8,15 @@ from fasterapi.__version__ import __version__
 from fasterapi.scaffolder.mount_routes import update_main_routes
 from fasterapi.scaffolder.generate_tokens_repo import create_token_file
 from fasterapi.scaffolder.generate_account import create_account_files
+from fasterapi.scaffolder.split_user_roles import (
+    run_split_user_wizard,
+    run_unsplit_user_wizard,
+)
+from fasterapi.scaffolder.email_templates import (
+    add_email_template,
+    mount_custom_email_templates,
+    mount_email_templates,
+)
 import subprocess
 
 @click.group()
@@ -119,6 +128,34 @@ def make_account(name):
         - Includes auth and Google OAuth flow from the user template.
     """
     create_account_files(name)
+
+
+@cli.command(name="split-user")
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Override conflict-marker safety checks and continue conversion.",
+)
+def split_user(force):
+    """
+    Interactively split the canonical user role into multiple custom roles.
+    """
+    if not run_split_user_wizard(force=force):
+        raise click.Abort()
+
+
+@cli.command(name="unsplit-user")
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Override conflict-marker safety checks and continue conversion.",
+)
+def unsplit_user(force):
+    """
+    Collapse split custom roles back to a single canonical user role.
+    """
+    if not run_unsplit_user_wizard(force=force):
+        raise click.Abort()
     
 @cli.command()
 def mount():
@@ -292,6 +329,56 @@ def make_token_repo(roles):
         f"✅ Token repository generated successfully for roles: {', '.join(roles)}",
         fg="green"
     )
+
+
+@cli.group()
+def email():
+    """
+    Manage email templates and email template mounting.
+    """
+    pass
+
+
+@email.command(name="add-template")
+@click.option(
+    "--template-key",
+    required=False,
+    help="Optional template key for non-interactive use.",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Overwrite destination template if it already exists.",
+)
+def email_add_template(template_key, force):
+    """
+    Add one of the built-in email template examples into email_templates/.
+    """
+    if not add_email_template(template_key=template_key, force=force):
+        raise click.Abort()
+
+
+@email.command(name="mount")
+def email_mount():
+    """
+    Mount templates in email_templates/ into core/email/mounted_templates.py.
+    """
+    if not mount_email_templates():
+        raise click.Abort()
+
+
+@email.command(name="mount-custom")
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Overwrite existing template files in email_templates/ while moving custom templates.",
+)
+def email_mount_custom(force):
+    """
+    Move custom_templates/*.py into email_templates/ and mount all templates.
+    """
+    if not mount_custom_email_templates(force=force):
+        raise click.Abort()
 
 
 @cli.command(name="git-push-auto")

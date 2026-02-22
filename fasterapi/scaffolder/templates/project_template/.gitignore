@@ -61,6 +61,7 @@ cover/
 
 # Django stuff:
 *.log
+email_mount_errors.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal

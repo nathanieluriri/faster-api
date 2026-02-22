@@ -1,7 +1,9 @@
 include LICENSE
 # Recursively include all files inside the project template folder
 recursive-include fasterapi/scaffolder/templates/project_template *
+recursive-include fasterapi/scaffolder/templates/email_examples *
 
 # Explicitly include dotfiles
 include fasterapi/scaffolder/templates/project_template/.env.example
 include fasterapi/scaffolder/templates/project_template/.gitignore
+include fasterapi/scaffolder/templates/project_template/custom_templates/.gitkeep

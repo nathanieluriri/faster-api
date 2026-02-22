@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/nathanieluriri/faster-api/main/docs/assets/fasterapi-hero.svg" alt="FasterAPI banner" width="100%" />
+  <img src="https://pub-4e784ee4f6b24479b0e9573fac4a96e8.r2.dev/branding/697a6159f4c5b5ab4a04c6c5/anagramlightmodeurl_0b524763f9a54c75a46708152a9d5df3.png" alt="FasterAPI banner" width="100%" />
 
   <h1>FasterAPI</h1>
   <p><strong>Scaffold FastAPI APIs faster with a focused CLI for backend teams.</strong></p>
@@ -95,9 +95,15 @@ fasterapi run-d
 | `make-crud <name>` | Generate CRUD repository functions |
 | `make-service <name>` | Generate service layer template |
 | `make-route <name> [--version-mode ...]` | Generate route files with API versioning |
+| `make-account <name>` | Clone the user account scaffold into a new role module |
 | `make-token-repo [roles...]` | Generate token repository for roles |
+| `split-user [--force]` | Interactively split `user` into custom non-admin roles |
+| `unsplit-user [--force]` | Collapse split custom roles back into canonical `user` |
 | `make-token-deps` | Generate token dependency utilities |
 | `mount` | Mount routes into `main.py` |
+| `email add-template` | Interactively add a built-in email template example |
+| `email mount` | Mount templates from `email_templates/` into the email singleton |
+| `email mount-custom` | Move templates from `custom_templates/` and mount them |
 | `run-d` | Run dev server (`uvicorn main:app --reload`) |
 | `update` | Upgrade FasterAPI CLI |
 
@@ -116,7 +122,38 @@ fasterapi run-d
 
 If no roles are provided to `make-token-repo`, defaults are:
 
-`admin, user, staff, guest-editor`
+`admin, user`
+
+### Email Templates
+
+`fasterapi email add-template` first asks what kind of template you need, then shows available examples.
+
+Built-in examples (10):
+
+- `changing-password`
+- `invitation`
+- `new-signin`
+- `otp`
+- `revoking`
+- `welcome`
+- `password-reset`
+- `email-verification`
+- `receipt`
+- `account-deactivated`
+
+Then mount templates with:
+
+```bash
+fasterapi email mount
+```
+
+For custom files placed in `custom_templates/`:
+
+```bash
+fasterapi email mount-custom
+```
+
+If mounting fails, check `email_mount_errors.log` in the project root.
 
 ## Typical Workflow
 

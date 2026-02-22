@@ -13,7 +13,7 @@ from services.user_service import (
     retrieve_users,
 )
 from security.account_status_check import check_user_account_status_and_permissions
-from security.auth import verify_member_refresh_token
+from security.auth import verify_user_refresh_token
 from security.principal import AuthPrincipal
 import os
 from dotenv import load_dotenv
@@ -104,7 +104,7 @@ async def login_user(user_data: UserBase):
 @document_response(message="Tokens refreshed successfully")
 async def refresh_user_tokens(
     user_data: UserRefresh,
-    principal: AuthPrincipal = Depends(verify_member_refresh_token),
+    principal: AuthPrincipal = Depends(verify_user_refresh_token),
 ):
     items = await refresh_user_tokens_reduce_number_of_logins(
         user_refresh_data=user_data,
