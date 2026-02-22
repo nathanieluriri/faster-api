@@ -89,6 +89,8 @@ fasterapi run-d
 
 | Command | Purpose |
 | --- | --- |
+| `new <name>` | Create a new project in a new folder |
+| `new-here` | Scaffold a new project in the current folder |
 | `make-schema <name>` | Generate a Pydantic schema |
 | `make-crud <name>` | Generate CRUD repository functions |
 | `make-service <name>` | Generate service layer template |
@@ -98,6 +100,12 @@ fasterapi run-d
 | `mount` | Mount routes into `main.py` |
 | `run-d` | Run dev server (`uvicorn main:app --reload`) |
 | `update` | Upgrade FasterAPI CLI |
+
+### `new` vs `new-here`
+
+- `fasterapi new <name>` creates a new directory (`./<name>`) and scaffolds the project inside it.
+- `fasterapi new-here` scaffolds directly into your current directory (`./`) without creating a new folder.
+- `new-here` is safety-checked and will stop if template paths already exist in the current directory.
 
 ### Route Versioning Modes
 
@@ -123,7 +131,7 @@ fasterapi run-d
 
 ## Roadmap
 
-- `fasterapi new myproject` full project bootstrap
+- Improve `new` and `new-here` bootstrap customization
 - SQLAlchemy repository generators (PostgreSQL/MySQL)
 - Config-driven scaffolding via `fasterapi.yaml`
 - CI/CD template generation

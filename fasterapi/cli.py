@@ -1,5 +1,5 @@
 import click
-from fasterapi.scaffolder.generate_project import create_project
+from fasterapi.scaffolder.generate_project import create_project, create_project_in_current_directory
 from fasterapi.scaffolder.generate_crud import create_crud_file
 from fasterapi.scaffolder.generate_schema import create_schema_file
 from fasterapi.scaffolder.generate_service import create_service_file
@@ -22,6 +22,13 @@ def cli():
 def new(name):
     """Create a new FastAPI project."""
     create_project(name)
+
+
+@cli.command(name="new-here")
+def new_here():
+    """Create a new FastAPI project in the current directory."""
+    create_project_in_current_directory()
+
 
 @cli.command()
 @click.argument("name")
