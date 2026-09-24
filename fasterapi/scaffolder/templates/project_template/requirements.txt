@@ -18,4 +18,4 @@ celery
 celery-aio-pool
 flower
 boto3
-stripe
+stripe>=15,<16

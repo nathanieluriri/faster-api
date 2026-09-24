@@ -167,6 +167,9 @@ def _where(filter_dict: dict | None, params: _Params) -> str:
                     )
                 elif op in ("$in", "$nin"):
                     match = f"COALESCE({expr} = ANY({params.add([_dumps(v) for v in value])}::jsonb[]), FALSE)"
+                    if None in value:
+                        # Like MongoDB, None also matches a missing field.
+                        match = f"({match} OR {expr} IS NULL)"
                     clauses.append(match if op == "$in" else f"NOT {match}")
                 elif op == "$exists":
                     clauses.append(f"{expr} IS {'NOT ' if value else ''}NULL")

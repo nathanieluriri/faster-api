@@ -2,18 +2,23 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from schemas.imports import ObjectId
 
 
 class PaymentIntentIn(BaseModel):
     amount_minor: int = Field(gt=0)
-    currency: str = Field(min_length=3, max_length=3)
-    reference: str = Field(min_length=3)
+    currency: str = Field(pattern=r"^[A-Za-z]{3}$")
+    reference: str = Field(pattern=r"^[A-Za-z0-9_-]{3,64}$")
     customer_email: str | None = None
     provider: str | None = None
     metadata: dict[str, Any] | None = None
+
+    @field_validator("currency")
+    @classmethod
+    def _upper_currency(cls, value: str) -> str:
+        return value.upper()
 
 
 class RefundIn(BaseModel):
@@ -29,6 +34,7 @@ class PaymentTransactionCreate(BaseModel):
     currency: str
     response_payload: dict[str, Any]
     idempotency_key: str
+    refunded_minor: int = 0
     created_at: int
     updated_at: int
 
@@ -43,6 +49,8 @@ class PaymentTransactionOut(BaseModel):
     currency: str
     response_payload: dict[str, Any]
     idempotency_key: str
+    refunded_minor: int = 0
+    last_refund: dict[str, Any] | None = None
     created_at: int
     updated_at: int
 

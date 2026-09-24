@@ -18,6 +18,7 @@ class DocumentStorageProvider(Protocol):
         metadata: DocumentMetadata,
         checksum: str | None = None,
     ) -> StoredDocument:
+        """Return the stored object's real size; raise FileNotFoundError if nothing was uploaded."""
         ...
 
     def download_url(self, *, object_key: str, expires_in: int = 900) -> str:

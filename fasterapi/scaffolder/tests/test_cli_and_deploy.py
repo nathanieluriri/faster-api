@@ -239,3 +239,11 @@ def test_deploy_check_warns_when_proxy_hops_are_disabled(runner):
     project = _new_project(runner, "--deploy", "vercel")
     _write_env(project, TRUSTED_PROXY_HOPS="0")
     assert any("TRUSTED_PROXY_HOPS" in m for s, m in _messages(project, "vercel") if s == "warning")
+
+
+def test_deploy_check_requires_webhook_secrets_for_configured_payments(runner):
+    project = _new_project(runner, "--deploy", "cloudrun")
+    _write_env(project, STRIPE_SECRET_KEY="sk_live_x", STRIPE_WEBHOOK_SECRET="")
+    assert any("STRIPE_WEBHOOK_SECRET" in m for s, m in _messages(project, "cloudrun") if s == "error")
+    _write_env(project, STRIPE_SECRET_KEY="sk_live_x", STRIPE_WEBHOOK_SECRET="whsec_x")
+    assert [m for s, m in _messages(project, "cloudrun") if s == "error"] == []

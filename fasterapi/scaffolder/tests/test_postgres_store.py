@@ -51,6 +51,8 @@ def test_crud_roundtrip_matches_motor_behaviour(store):
         assert await items.count_documents({"name": {"$nin": ["ada"]}}) == 2
         assert await items.count_documents({"$or": [{"name": "ada"}, {"age": 20}]}) == 2
         assert await items.count_documents({"missing": {"$exists": False}}) == 3
+        assert await items.count_documents({"missing": {"$in": [1, None]}}) == 3
+        assert await items.count_documents({"age": {"$nin": [None]}}) == 2
 
         names = [d["name"] async for d in items.find({}).sort("name", -1).skip(1).limit(1)]
         assert names == ["bob"]

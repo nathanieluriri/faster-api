@@ -173,6 +173,16 @@ def _check_services(env: dict[str, str], target: str) -> list[Finding]:
             "error", "SESSION_SECRET_KEY is empty, so session cookies would be signed with a known development key.",
             "Set SESSION_SECRET_KEY to a long random value.",
         ))
+    for key, secret, name in (
+        ("STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "Stripe"),
+        ("FLUTTERWAVE_SECRET_KEY", "FLW_WEBHOOK_SECRET_HASH", "Flutterwave"),
+    ):
+        if env.get(key) and not env.get(secret):
+            findings.append(Finding(
+                "error", f"{key} is set but {secret} is empty, so {name} webhooks are rejected and payments are "
+                "never confirmed.",
+                f"Set {secret} to the webhook signing secret from your {name} dashboard.",
+            ))
     super_admin_password = env.get("SUPER_ADMIN_PASSWORD") or ""
     if super_admin_password and len(super_admin_password) < 12:
         findings.append(Finding(

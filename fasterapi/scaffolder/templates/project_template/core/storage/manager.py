@@ -33,7 +33,10 @@ class DocumentStorageManager:
                 endpoint_url=settings.s3_endpoint_url,
             )
         else:
-            provider = LocalStorageProvider(root_dir=settings.storage_local_root)
+            provider = LocalStorageProvider(
+                root_dir=settings.storage_local_root,
+                signing_key=settings.secret_key or "dev-only-insecure-secret",
+            )
 
         return cls.configure(provider)
 

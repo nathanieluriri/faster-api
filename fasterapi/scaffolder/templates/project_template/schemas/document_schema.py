@@ -19,14 +19,16 @@ class UploadIntentResponse(BaseModel):
     expires_in: int
     method: str
     headers: dict[str, str] | None = None
+    form_fields: dict[str, str] | None = None
 
 
 class CompleteUploadRequest(BaseModel):
     object_key: str
-    file_name: str
-    mime_type: str
-    size: int = Field(gt=0)
     checksum: str | None = None
+    # Accepted for older clients; the values recorded with the upload intent are used instead.
+    file_name: str | None = None
+    mime_type: str | None = None
+    size: int | None = None
 
 
 class DocumentCreate(BaseModel):

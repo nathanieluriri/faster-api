@@ -1,18 +1,28 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 import time
+
+from pymongo.errors import DuplicateKeyError
 
 from core.errors import AppException, ErrorCode, resource_not_found
 from core.payments import PaymentIntentRequest, PaymentManager
+from core.payments.provider import PaymentProvider
+from core.payments.types import PaymentStatus, PaymentTransaction
 from repositories.payment_repo import (
+    claim_webhook_event,
     create_payment_transaction,
+    delete_payment_transaction,
+    ensure_payment_indexes,
     get_payment_transaction_by_id,
     get_payment_transaction_by_reference,
-    is_webhook_event_processed,
-    mark_webhook_event_processed,
-    update_payment_transaction_status,
+    release_webhook_event,
+    update_payment_transaction,
 )
-from schemas.payment_schema import PaymentIntentIn, PaymentTransactionCreate, WebhookReplayCreate
+from schemas.payment_schema import PaymentIntentIn, PaymentTransactionCreate, PaymentTransactionOut
+
+logger = logging.getLogger(__name__)
 
 
 def _epoch() -> int:
@@ -31,77 +41,123 @@ def _get_payment_manager() -> PaymentManager:
         ) from err
 
 
+def _get_provider(name: str | None) -> PaymentProvider:
+    try:
+        return _get_payment_manager().get_provider((name or "").lower() or None)
+    except ValueError as err:
+        raise AppException(status_code=400, code=ErrorCode.PAYMENT_PROVIDER_ERROR, message=str(err)) from err
+
+
+def _conflict(message: str) -> AppException:
+    return AppException(status_code=409, code=ErrorCode.PAYMENT_PROVIDER_ERROR, message=message)
+
+
 async def create_payment_intent(*, owner_id: str, payload: PaymentIntentIn):
-    provider_name = (payload.provider or "").lower() or None
-    provider = _get_payment_manager().get_provider(provider_name)
+    provider = _get_provider(payload.provider)
+    await ensure_payment_indexes()
 
-    existing = await get_payment_transaction_by_reference(reference=payload.reference)
-    if existing is not None:
-        return existing
-
-    intent = provider.create_intent(
-        PaymentIntentRequest(
-            amount_minor=payload.amount_minor,
-            currency=payload.currency,
-            reference=payload.reference,
-            customer_email=payload.customer_email,
-            metadata=payload.metadata,
+    now = _epoch()
+    try:
+        # Claim the reference first: the unique index makes a concurrent duplicate fail here.
+        await create_payment_transaction(
+            PaymentTransactionCreate(
+                owner_id=owner_id,
+                provider=provider.provider_name,
+                reference=payload.reference,
+                status=PaymentStatus.PENDING.value,
+                amount_minor=payload.amount_minor,
+                currency=payload.currency,
+                response_payload={},
+                idempotency_key=f"{provider.provider_name}:{payload.reference}",
+                created_at=now,
+                updated_at=now,
+            )
         )
+    except DuplicateKeyError:
+        existing = await get_payment_transaction_by_reference(reference=payload.reference)
+        is_retry = (
+            existing is not None
+            and existing.owner_id == owner_id
+            and existing.provider == provider.provider_name
+            and existing.amount_minor == payload.amount_minor
+            and existing.currency == payload.currency
+            and existing.response_payload
+        )
+        if is_retry:
+            return existing
+        raise _conflict("This payment reference is already in use")
+
+    try:
+        intent = await asyncio.to_thread(
+            provider.create_intent,
+            PaymentIntentRequest(
+                amount_minor=payload.amount_minor,
+                currency=payload.currency,
+                reference=payload.reference,
+                customer_email=payload.customer_email,
+                metadata=payload.metadata,
+            ),
+        )
+    except Exception:
+        await delete_payment_transaction(reference=payload.reference)
+        raise
+
+    return await update_payment_transaction(
+        {"reference": payload.reference},
+        {"$set": {"status": intent.status.value, "response_payload": intent.provider_payload, "updated_at": _epoch()}},
     )
 
-    return await create_payment_transaction(
-        PaymentTransactionCreate(
-            owner_id=owner_id,
-            provider=intent.provider.value,
-            reference=intent.reference,
-            status=intent.status.value,
-            amount_minor=payload.amount_minor,
-            currency=payload.currency,
-            response_payload=intent.provider_payload,
-            idempotency_key=f"{intent.provider.value}:{intent.reference}",
-            created_at=_epoch(),
-            updated_at=_epoch(),
+
+def _verified_status(tx: PaymentTransactionOut, remote: PaymentTransaction) -> PaymentStatus:
+    if remote.status != PaymentStatus.SUCCEEDED:
+        return remote.status
+    if remote.amount_minor != tx.amount_minor or (remote.currency or "").upper() != tx.currency.upper():
+        logger.warning(
+            "Payment %s paid %s %s but %s %s was expected; marking it failed",
+            tx.reference, remote.amount_minor, remote.currency, tx.amount_minor, tx.currency,
         )
-    )
+        return PaymentStatus.FAILED
+    return PaymentStatus.SUCCEEDED
+
+
+def _next_status(current: str, incoming: PaymentStatus) -> PaymentStatus:
+    # Status only moves forward: a late or retried event can't undo a success or a refund.
+    current_status = PaymentStatus(current)
+    if current_status == PaymentStatus.REFUNDED:
+        return current_status
+    if current_status == PaymentStatus.SUCCEEDED and incoming in (PaymentStatus.PENDING, PaymentStatus.FAILED):
+        return current_status
+    return incoming
 
 
 async def process_webhook(*, provider_name: str, body: bytes, headers: dict[str, str]):
-    provider = _get_payment_manager().get_provider(provider_name)
+    provider = _get_provider(provider_name)
     event = provider.verify_webhook(body=body, headers=headers)
+    if not event.reference:
+        raise AppException(status_code=400, code=ErrorCode.PAYMENT_WEBHOOK_INVALID, message="Webhook missing reference")
 
-    if await is_webhook_event_processed(provider=provider_name, event_id=event.event_id):
-        raise AppException(
-            status_code=409,
-            code=ErrorCode.PAYMENT_WEBHOOK_INVALID,
-            message="Webhook already processed",
-            details={"event_id": event.event_id},
+    tx = await get_payment_transaction_by_reference(reference=event.reference)
+    if tx is None or tx.provider != provider.provider_name:
+        raise resource_not_found("PaymentTransaction", event.reference)
+
+    await ensure_payment_indexes()
+    if not await claim_webhook_event(provider.provider_name, event.event_id, _epoch()):
+        # Already handled; a 2xx stops the provider from retrying.
+        return {"processed": False, "duplicate": True, "reference": tx.reference, "status": tx.status}
+
+    try:
+        remote = await asyncio.to_thread(
+            provider.fetch_transaction, reference=tx.reference, provider_id=tx.response_payload.get("id")
         )
-
-    reference = (
-        event.payload.get("data", {}).get("tx_ref")
-        or event.payload.get("data", {}).get("reference")
-        or event.payload.get("reference")
-    )
-    if not reference:
-        raise AppException(
-            status_code=400,
-            code=ErrorCode.PAYMENT_WEBHOOK_INVALID,
-            message="Webhook missing reference",
-            details=event.payload,
+        status = _next_status(tx.status, _verified_status(tx, remote))
+        updated = await update_payment_transaction(
+            {"reference": tx.reference},
+            {"$set": {"status": status.value, "response_payload": remote.raw, "updated_at": _epoch()}},
         )
-
-    tx = provider.fetch_transaction(reference=reference)
-    updated = await update_payment_transaction_status(
-        reference=reference,
-        status=tx.status.value,
-        response_payload=tx.raw,
-    )
-    if updated is None:
-        raise resource_not_found("PaymentTransaction", reference)
-    await mark_webhook_event_processed(
-        WebhookReplayCreate(provider=provider_name, event_id=event.event_id, created_at=_epoch())
-    )
-    return {"processed": True, "reference": reference, "status": tx.status.value}
+    except Exception:
+        await release_webhook_event(provider.provider_name, event.event_id)
+        raise
+    return {"processed": True, "reference": tx.reference, "status": updated.status}
 
 
 async def get_payment_transaction(payment_id: str):
@@ -115,14 +171,48 @@ async def refund_payment(*, payment_id: str, amount_minor: int | None = None):
     tx = await get_payment_transaction_by_id(payment_id=payment_id)
     if tx is None:
         raise resource_not_found("PaymentTransaction", payment_id)
+    if tx.status != PaymentStatus.SUCCEEDED.value:
+        raise _conflict("Only succeeded payments can be refunded")
 
-    provider = _get_payment_manager().get_provider(tx.provider)
-    refunded = provider.refund(reference=tx.reference, amount_minor=amount_minor)
-    updated = await update_payment_transaction_status(
-        reference=tx.reference,
-        status=refunded.status.value,
-        response_payload=refunded.raw,
+    remaining = tx.amount_minor - tx.refunded_minor
+    amount = amount_minor or remaining
+    if amount > remaining:
+        raise AppException(
+            status_code=400,
+            code=ErrorCode.PAYMENT_PROVIDER_ERROR,
+            message="Refund exceeds the amount left to refund",
+            details={"remaining_minor": remaining},
+        )
+
+    # Reserve the amount atomically so two concurrent refunds can't both pass the check above.
+    reserved = await update_payment_transaction(
+        {"reference": tx.reference, "status": PaymentStatus.SUCCEEDED.value, "refunded_minor": {"$in": [tx.refunded_minor, None]}},
+        {"$inc": {"refunded_minor": amount}},
     )
-    if updated is None:
-        raise resource_not_found("PaymentTransaction", payment_id)
-    return updated
+    if reserved is None:
+        raise _conflict("Another refund for this payment is in progress; try again")
+
+    provider = _get_provider(tx.provider)
+    try:
+        refunded = await asyncio.to_thread(
+            provider.refund,
+            reference=tx.reference,
+            amount_minor=amount,
+            currency=tx.currency,
+            provider_id=tx.response_payload.get("id"),
+        )
+    except Exception:
+        await update_payment_transaction({"reference": tx.reference}, {"$inc": {"refunded_minor": -amount}})
+        raise
+
+    fully_refunded = reserved.refunded_minor >= tx.amount_minor
+    return await update_payment_transaction(
+        {"reference": tx.reference},
+        {
+            "$set": {
+                "status": (PaymentStatus.REFUNDED if fully_refunded else PaymentStatus.SUCCEEDED).value,
+                "last_refund": refunded.raw,
+                "updated_at": _epoch(),
+            }
+        },
+    )

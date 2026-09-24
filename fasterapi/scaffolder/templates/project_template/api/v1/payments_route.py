@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Request
 from core.errors import auth_permission_denied
 from core.response_envelope import document_response
 from schemas.payment_schema import PaymentIntentIn, RefundIn
-from security.auth import verify_any_token
+from security.active_account import require_active_account
 from security.principal import AuthPrincipal
 from services.payment_service import (
     create_payment_intent,
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/payments", tags=["Payments"])
     status_code=201,
     response_codes={401: "Unauthorized", 409: "Duplicate reference"},
 )
-async def create_intent(payload: PaymentIntentIn, principal: AuthPrincipal = Depends(verify_any_token)):
+async def create_intent(payload: PaymentIntentIn, principal: AuthPrincipal = Depends(require_active_account)):
     return await create_payment_intent(owner_id=principal.user_id, payload=payload)
 
 
@@ -39,12 +39,12 @@ async def payment_webhook(provider: str, request: Request):
     """
     body = await request.body()
     headers = {k: v for k, v in request.headers.items()}
-    return await process_webhook(provider_name=provider, body=body, headers=headers)
+    return await process_webhook(provider_name=provider.lower(), body=body, headers=headers)
 
 
 @router.get("/{payment_id}")
 @document_response(message="Payment transaction fetched")
-async def fetch_transaction(payment_id: str, principal: AuthPrincipal = Depends(verify_any_token)):
+async def fetch_transaction(payment_id: str, principal: AuthPrincipal = Depends(require_active_account)):
     tx = await get_payment_transaction(payment_id=payment_id)
     if tx.owner_id != principal.user_id and not principal.is_admin:
         raise auth_permission_denied("GET:/v1/payments/{payment_id}")
@@ -56,9 +56,9 @@ async def fetch_transaction(payment_id: str, principal: AuthPrincipal = Depends(
 async def refund_transaction(
     payment_id: str,
     payload: RefundIn,
-    principal: AuthPrincipal = Depends(verify_any_token),
+    principal: AuthPrincipal = Depends(require_active_account),
 ):
-    tx = await get_payment_transaction(payment_id=payment_id)
-    if tx.owner_id != principal.user_id and not principal.is_admin:
+    # Refunds move money back out, so only admins can issue them.
+    if not principal.is_admin:
         raise auth_permission_denied("POST:/v1/payments/{payment_id}/refund")
     return await refund_payment(payment_id=payment_id, amount_minor=payload.amount_minor)
