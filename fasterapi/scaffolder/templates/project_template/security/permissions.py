@@ -69,6 +69,21 @@ def get_endpoint_permissions(router: APIRouter, endpoints: set[str]) -> Permissi
     return _route_permissions(router, endpoints=endpoints)
 
 
+def _effective_grants(permission_list: PermissionList | None) -> set[str]:
+    # Mirrors the access check: a permission matches by key, or by endpoint name plus an uppercase method.
+    grants: set[str] = set()
+    for permission in permission_list.permissions if permission_list else []:
+        if permission.key:
+            grants.add(permission.key)
+        grants.update(f"{method} {permission.name}" for method in permission.methods if method == method.upper())
+    return grants
+
+
+def ungranted_permissions(requested: PermissionList | None, held: PermissionList | None) -> list[str]:
+    """What `requested` would allow that `held` does not."""
+    return sorted(_effective_grants(requested) - _effective_grants(held))
+
+
 def default_get_permissions() -> PermissionList:
     from api.v1.admin_route import router
 

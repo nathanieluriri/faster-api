@@ -100,7 +100,7 @@ fasterapi run-d
 | `make-crud <name>` | Generate CRUD repository functions |
 | `make-service <name>` | Generate service layer template |
 | `make-route <name> [--version-mode ...]` | Generate route files with API versioning |
-| `make-account <name>` | Clone the user account scaffold into a new role module |
+| `make-account <name>` | Add a new account type (e.g. `customer`) with its own signup, login, tokens and permission checks |
 | `make-token-repo [roles...]` | Generate token repository for roles |
 | `split-user [--force]` | Interactively split `user` into custom non-admin roles |
 | `unsplit-user [--force]` | Collapse split custom roles back into canonical `user` |
@@ -142,10 +142,29 @@ on first use. Tables get row level security enabled, so Supabase's public REST A
 - New users (email signup or Google sign-in) can view and delete their own account:
   `GET /v1/users/me` and `DELETE /v1/users/account`. Admins grant anything else.
   Permissions or an account status sent in a signup request are ignored.
-- Roles created with `split-user` get the same defaults for their own routes.
+- Roles created with `split-user` or `make-account` get the same defaults for their own routes.
+  `make-account` roles are kept when you later run `split-user` or `unsplit-user`.
+- Invited admins can view and delete their own account. An inviting admin can only grant
+  permissions they hold themselves.
+- Admins manage every account type from `/v1/admins/accounts/{role}`: list accounts, see the
+  permissions that can be granted (`/permissions`), and `PATCH /{account_id}` to set
+  `permissionList` or `accountStatus`. Suspending an account ends its sessions immediately.
+- Passwords need at least 8 characters. Accounts created through Google can't be opened with a
+  password, and Google sign-in never takes over an account that was registered with a password.
+- After Google sign-in, users are redirected to `SUCCESS_PAGE_URL` with the tokens in the URL
+  fragment (`#access_token=...&refresh_token=...`), so read them from `window.location.hash`.
+  Failures go to `ERROR_PAGE_URL?error=...`.
 - The built-in super admin has every admin permission and is how you invite the first admins.
   Set `SUPER_ADMIN_EMAIL` and `SUPER_ADMIN_PASSWORD` to enable it; production requires a
   password of at least 12 characters, and `deploy check` flags shorter ones.
+
+### Rate limiting behind a proxy
+
+Anonymous requests are rate limited by client IP, read from `X-Forwarded-For`. Only the entries
+your own proxies append are trusted, so a forged header can't dodge the limit. Set
+`TRUSTED_PROXY_HOPS` to the number of proxies in front of the app: `1` for Vercel, Cloud Run,
+Render, Fly or nginx (the default), `2` behind a Google Cloud external load balancer, `0` when
+clients connect directly.
 
 ## Deploying
 

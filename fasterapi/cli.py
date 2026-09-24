@@ -166,10 +166,13 @@ def make_account(name):
         fasterapi make-account client
 
     Notes:
-        - This copies the built-in user account template and renames it.
-        - Includes auth and Google OAuth flow from the user template.
+        - Copies the built-in user account (signup, login, refresh, Google OAuth,
+          profile, account deletion) and renames it.
+        - Wires the new role into tokens, auth, permission checks and rate limits,
+          and keeps it through split-user and unsplit-user.
     """
-    create_account_files(name)
+    if not create_account_files(name):
+        raise click.Abort()
 
 
 @cli.command(name="split-user")

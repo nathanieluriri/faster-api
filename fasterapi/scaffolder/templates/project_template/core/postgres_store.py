@@ -79,14 +79,17 @@ def _uses_transaction_pooler(dsn: str) -> bool:
     return parsed.port == 6543 or "pooler" in (parsed.hostname or "")
 
 
+# Match pymongo's result objects, including `acknowledged`, which callers check.
 @dataclass
 class InsertOneResult:
     inserted_id: Any
+    acknowledged: bool = True
 
 
 @dataclass
 class InsertManyResult:
     inserted_ids: list[Any]
+    acknowledged: bool = True
 
 
 @dataclass
@@ -94,11 +97,13 @@ class UpdateResult:
     matched_count: int
     modified_count: int
     upserted_id: Any = None
+    acknowledged: bool = True
 
 
 @dataclass
 class DeleteResult:
     deleted_count: int
+    acknowledged: bool = True
 
 
 @dataclass

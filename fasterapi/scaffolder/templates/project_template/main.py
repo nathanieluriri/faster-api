@@ -18,6 +18,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from celery_worker import celery_app
+from core.client_address import client_address
 from core.database import DB_TYPE, ping_database
 from core.email.manager import EmailManager
 from core.payments.manager import PaymentManager
@@ -69,7 +70,7 @@ limiter = FixedWindowRateLimiter(storage)
 
 async def get_user_type(request: Request) -> tuple[str, str]:
     auth_header = request.headers.get("Authorization")
-    fallback_id = request.headers.get("X-Forwarded-For") or request.client.host
+    fallback_id = client_address(request, settings.trusted_proxy_hops)
 
     if not auth_header or not auth_header.startswith("Bearer "):
         return fallback_id, "anonymous"

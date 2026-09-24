@@ -25,3 +25,10 @@ def test_build_role_rate_limits_uses_fallback_and_has_anonymous():
     assert "driver" in rules
     assert "rider" in rules
     assert "admin" in rules
+
+
+def test_build_role_rate_limits_keeps_defaults_for_roles_missing_from_env():
+    fallback_csv = build_role_rate_limits_csv(non_admin_roles=["user", "customer"])
+    rules = build_role_rate_limits(raw="anonymous:5/minute,user:10/minute,admin:50/minute", fallback_csv=fallback_csv)
+    assert rules["user"].amount == 10
+    assert rules["customer"].amount == 80

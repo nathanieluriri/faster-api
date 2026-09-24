@@ -43,6 +43,11 @@ class AdminUpdate(BaseModel):
         if self.password:
             self.password=hash_password(self.password)
             return self
+class AccountAccessUpdate(BaseModel):
+    permissionList: Optional[PermissionList] = None
+    accountStatus: Optional[AccountStatus] = None
+
+
 class AdminOut(AdminBase):
     # Add other fields here 
     id: Optional[str] = Field(default=None, alias="_id")

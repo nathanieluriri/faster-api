@@ -145,14 +145,11 @@ async def _resolve_access_token_id(accessToken: str, allow_expired: bool) -> str
         if allow_expired
         else await decode_jwt_token(accessToken)
     )
+    # Only a signed JWT authenticates. The record id inside it is not a secret (ObjectIds are sequential),
+    # so it must never be accepted on its own.
     if decoded and decoded.get("accessToken"):
         return decoded["accessToken"]
-
-    try:
-        ObjectId(accessToken)
-        return accessToken
-    except errors.InvalidId:
-        return None
+    return None
 
 
 async def get_access_token(accessToken: str, allow_expired: bool = False) -> accessTokenOut | None:
@@ -210,6 +207,8 @@ async def get_access_token_allow_expired(accessToken: str) -> accessTokenOut | N
 
 
 async def get_refresh_tokens(refreshToken: str) -> refreshTokenOut | None:
+    if not ObjectId.is_valid(refreshToken):
+        return None
     token = await db.refreshToken.find_one({{"_id": ObjectId(refreshToken)}})
     if token:
         return refreshTokenOut(**token)

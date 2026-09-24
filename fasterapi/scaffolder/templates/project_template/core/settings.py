@@ -49,6 +49,7 @@ class Settings:
     flutterwave_public_key: str | None
     flutterwave_webhook_secret_hash: str | None
     scheduler_enabled: bool
+    trusted_proxy_hops: int
 
     @property
     def is_production(self) -> bool:
@@ -94,6 +95,7 @@ def get_settings() -> Settings:
         # Serverless platforms like Vercel have no long-running process to keep a scheduler alive.
         scheduler_enabled=(os.getenv("ENABLE_SCHEDULER") or ("false" if os.getenv("VERCEL") else "true")).lower()
         in {"1", "true", "yes"},
+        trusted_proxy_hops=int(os.getenv("TRUSTED_PROXY_HOPS") or 1),
     )
 
     if settings.is_production:

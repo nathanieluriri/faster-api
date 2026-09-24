@@ -11,6 +11,7 @@ from repositories.user_repo import (
     delete_user,
 )
 from schemas.user_schema import UserCreate, UserUpdate, UserOut,UserBase,UserRefresh
+from schemas.imports import LoginType
 from security.hash import check_password
 from security.permissions import get_endpoint_permissions
 from repositories.tokens_repo import get_refresh_tokens,delete_access_token,delete_refresh_token,delete_all_tokens_with_user_id,delete_access_and_refresh_token_with_user_id
@@ -64,7 +65,10 @@ async def authenticate_user(user_data:UserBase )->UserOut:
     user = await get_user(filter_dict={"email":user_data.email})
 
     if user != None:
-        if check_password(password=user_data.password,hashed=user.password ): # type: ignore
+        if user.loginType != LoginType.email:
+            # Google accounts are stored with an empty password, so password login must never reach them.
+            raise HTTPException(status_code=401, detail="This account signs in with Google")
+        if user_data.password and check_password(password=user_data.password,hashed=user.password ): # type: ignore
             user.password=""
             access_token, refresh_token = await issue_tokens_for_user(user_id=user.id, role="user") # type: ignore
             user.access_token= access_token
@@ -88,10 +92,8 @@ async def refresh_user_tokens_reduce_number_of_logins(user_refresh_data:UserRefr
                     await delete_access_token(accessToken=expired_access_token)
                     await delete_refresh_token(refreshToken=user_refresh_data.refresh_token)
                     return user
-     
-        await delete_refresh_token(refreshToken=user_refresh_data.refresh_token)
-        await delete_access_token(accessToken=expired_access_token)
-  
+
+    # A mismatched refresh token may belong to someone else, so it is left untouched.
     raise HTTPException(status_code=404,detail="Invalid refresh token ")  
         
 async def remove_user(user_id: str):
@@ -170,6 +172,9 @@ async def authenticate_user_google(user_data: UserBase) -> UserOut:
     if user is None:
         new_user = await create_user(_with_default_access(UserCreate(**user_data.model_dump())))
         user = new_user
+    elif user.loginType != LoginType.google:
+        # Signing in with Google must not unlock an account that was registered with a password.
+        raise HTTPException(status_code=409, detail="An account with this email signs in with a password")
 
     access_token, refresh_token = await issue_tokens_for_user(user_id=user.id, role="user") # type: ignore
     user.password = ""

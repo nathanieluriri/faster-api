@@ -179,6 +179,12 @@ def _check_services(env: dict[str, str], target: str) -> list[Finding]:
             "error", "SUPER_ADMIN_PASSWORD is shorter than 12 characters, and it unlocks full admin access.",
             "Use a long random password, or leave SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD empty to disable it.",
         ))
+    if (env.get("TRUSTED_PROXY_HOPS") or "1").strip() == "0":
+        findings.append(Finding(
+            "warning", "TRUSTED_PROXY_HOPS=0 makes the app use the platform proxy's address, so every anonymous "
+            "visitor shares one rate limit bucket.",
+            "Set TRUSTED_PROXY_HOPS=1 (2 behind a Google Cloud external load balancer).",
+        ))
     if (env.get("ENV") or "development").lower() != "production":
         findings.append(Finding(
             "warning", "ENV is not 'production', so production safety checks are skipped.",

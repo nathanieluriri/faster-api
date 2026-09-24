@@ -198,3 +198,44 @@ def test_deploy_check_rejects_a_weak_super_admin_password(runner):
     assert any("SUPER_ADMIN_PASSWORD" in m for s, m in _messages(project, "cloudrun") if s == "error")
     _write_env(project, SUPER_ADMIN_EMAIL="root@example.com", SUPER_ADMIN_PASSWORD="a-long-random-password")
     assert [m for s, m in _messages(project, "cloudrun") if s == "error"] == []
+
+
+def test_make_account_wires_the_role_and_survives_split_and_unsplit(runner):
+    import subprocess, sys
+    project = _new_project(runner)
+    (project / ".env").write_text((project / ".env.example").read_text())
+    os.chdir(project)
+
+    def importable():
+        return subprocess.run([sys.executable, "-c", "import main"], cwd=project, capture_output=True, text=True)
+
+    assert runner.invoke(cli, ["make-account", "customer"]).exit_code == 0
+    for relative in ("security/auth.py", "security/account_status_check.py", "repositories/tokens_repo.py"):
+        assert "customer" in (project / relative).read_text()
+    assert "retrieve_customer_by_customer_id" in (project / "services" / "customer_service.py").read_text()
+    assert json.loads((project / ".fasterapi" / "role_split_state.json").read_text())["extra_roles"] == ["customer"]
+    assert importable().returncode == 0, importable().stderr[-1500:]
+
+    assert runner.invoke(cli, ["split-user"], input="driver\nrider\nend\n").exit_code == 0
+    assert (project / "api" / "v1" / "customer_route.py").exists()
+    assert "verify_customer_token" in (project / "security" / "auth.py").read_text()
+    assert importable().returncode == 0, importable().stderr[-1500:]
+
+    assert runner.invoke(cli, ["unsplit-user"], input="yes\n").exit_code == 0
+    assert (project / "api" / "v1" / "customer_route.py").exists() and (project / "api" / "v1" / "user_route.py").exists()
+    assert "verify_customer_token" in (project / "security" / "auth.py").read_text()
+    assert importable().returncode == 0, importable().stderr[-1500:]
+
+
+def test_make_account_rejects_reserved_duplicate_and_clashing_names(runner):
+    project = _new_project(runner)
+    os.chdir(project)
+    assert runner.invoke(cli, ["make-account", "customer"]).exit_code == 0
+    for name in ("user", "admin", "customer", "payment", "Bad-Name"):
+        assert runner.invoke(cli, ["make-account", name]).exit_code != 0, name
+
+
+def test_deploy_check_warns_when_proxy_hops_are_disabled(runner):
+    project = _new_project(runner, "--deploy", "vercel")
+    _write_env(project, TRUSTED_PROXY_HOPS="0")
+    assert any("TRUSTED_PROXY_HOPS" in m for s, m in _messages(project, "vercel") if s == "warning")
