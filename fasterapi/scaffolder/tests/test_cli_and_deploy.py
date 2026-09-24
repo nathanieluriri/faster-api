@@ -190,3 +190,11 @@ def test_vercelignore_keeps_every_module_main_imports(runner):
     imported = {line.split()[1].split(".")[0] for line in (project / "main.py").read_text().splitlines() if line.startswith(("from ", "import "))}
     assert not {f"{name}.py" for name in imported} & ignored
     assert not imported & ignored
+
+
+def test_deploy_check_rejects_a_weak_super_admin_password(runner):
+    project = _new_project(runner, "--deploy", "cloudrun")
+    _write_env(project, SUPER_ADMIN_EMAIL="root@example.com", SUPER_ADMIN_PASSWORD="string")
+    assert any("SUPER_ADMIN_PASSWORD" in m for s, m in _messages(project, "cloudrun") if s == "error")
+    _write_env(project, SUPER_ADMIN_EMAIL="root@example.com", SUPER_ADMIN_PASSWORD="a-long-random-password")
+    assert [m for s, m in _messages(project, "cloudrun") if s == "error"] == []

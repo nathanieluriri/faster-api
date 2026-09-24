@@ -538,6 +538,8 @@ def _rewrite_role_specific_content(content: str, role: str) -> str:
     content = re.sub(
         r"\bcheck_user_account_status_and_permissions\b", f"check_{role}_account_status_and_permissions", content
     )
+    # The generated account check looks up services.<role>_service.retrieve_<role>_by_<role>_id.
+    content = re.sub(r"\bretrieve_user_by_user_id\b", f"retrieve_{role}_by_{role}_id", content)
     content = re.sub(r'role="member"', f'role="{role}"', content)
     content = re.sub(r'role="user"', f'role="{role}"', content)
     return content

@@ -137,6 +137,16 @@ on first use. Tables get row level security enabled, so Supabase's public REST A
 - Anything else (for example `$regex` or `aggregate`) raises a clear `NotImplementedError`.
 - On Vercel or other serverless hosts, use Supabase's transaction pooler URL (port 6543).
 
+## Accounts and Permissions
+
+- New users (email signup or Google sign-in) can view and delete their own account:
+  `GET /v1/users/me` and `DELETE /v1/users/account`. Admins grant anything else.
+  Permissions or an account status sent in a signup request are ignored.
+- Roles created with `split-user` get the same defaults for their own routes.
+- The built-in super admin has every admin permission and is how you invite the first admins.
+  Set `SUPER_ADMIN_EMAIL` and `SUPER_ADMIN_PASSWORD` to enable it; production requires a
+  password of at least 12 characters, and `deploy check` flags shorter ones.
+
 ## Deploying
 
 ```bash
@@ -233,8 +243,8 @@ git clone https://github.com/nathanieluriri/faster-api.git
 cd faster-api
 pip install -e . pytest
 pytest
-# Postgres backend tests run when a database is available:
-TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/test pytest
+# Postgres and end-to-end tests run when a database and Redis are available:
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/test TEST_REDIS_URL=redis://localhost:6379/0 pytest
 ```
 
 Issues and pull requests are welcome.

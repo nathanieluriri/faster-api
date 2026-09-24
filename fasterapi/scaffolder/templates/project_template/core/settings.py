@@ -101,5 +101,8 @@ def get_settings() -> Settings:
             raise RuntimeError("SECRET_KEY is required when ENV=production")
         if not settings.session_secret_key:
             raise RuntimeError("SESSION_SECRET_KEY is required when ENV=production")
+        super_admin_password = os.getenv("SUPER_ADMIN_PASSWORD") or ""
+        if super_admin_password and len(super_admin_password) < 12:
+            raise RuntimeError("SUPER_ADMIN_PASSWORD must be at least 12 characters when ENV=production")
 
     return settings

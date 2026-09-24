@@ -173,6 +173,12 @@ def _check_services(env: dict[str, str], target: str) -> list[Finding]:
             "error", "SESSION_SECRET_KEY is empty, so session cookies would be signed with a known development key.",
             "Set SESSION_SECRET_KEY to a long random value.",
         ))
+    super_admin_password = env.get("SUPER_ADMIN_PASSWORD") or ""
+    if super_admin_password and len(super_admin_password) < 12:
+        findings.append(Finding(
+            "error", "SUPER_ADMIN_PASSWORD is shorter than 12 characters, and it unlocks full admin access.",
+            "Use a long random password, or leave SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD empty to disable it.",
+        ))
     if (env.get("ENV") or "development").lower() != "production":
         findings.append(Finding(
             "warning", "ENV is not 'production', so production safety checks are skipped.",
