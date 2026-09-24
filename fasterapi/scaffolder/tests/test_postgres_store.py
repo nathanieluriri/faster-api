@@ -15,10 +15,12 @@ pytestmark = pytest.mark.skipif(not DATABASE_URL, reason="set TEST_DATABASE_URL 
 @pytest.fixture()
 def store():
     sys.path.insert(0, str(TEMPLATE))
+    sys.dont_write_bytecode = True  # keep __pycache__ out of the project template
     try:
         from core.postgres_store import PostgresDocumentStore
     finally:
         sys.path.remove(str(TEMPLATE))
+        sys.dont_write_bytecode = False
     return PostgresDocumentStore(DATABASE_URL)
 
 

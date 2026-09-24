@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import os
 from pathlib import Path
 
@@ -247,3 +248,76 @@ def test_deploy_check_requires_webhook_secrets_for_configured_payments(runner):
     assert any("STRIPE_WEBHOOK_SECRET" in m for s, m in _messages(project, "cloudrun") if s == "error")
     _write_env(project, STRIPE_SECRET_KEY="sk_live_x", STRIPE_WEBHOOK_SECRET="whsec_x")
     assert [m for s, m in _messages(project, "cloudrun") if s == "error"] == []
+
+
+def test_email_mount_rejects_broken_templates_and_rolls_back(runner):
+    project = _new_project(runner)
+    os.chdir(project)
+    mounted = project / "core" / "email" / "mounted_templates.py"
+    before = mounted.read_text()
+
+    (project / "custom_templates" / "return.py").write_text((project / "email_templates" / "starter_template.py").read_text())
+    assert runner.invoke(cli, ["email", "mount-custom"]).exit_code != 0
+    assert (project / "custom_templates" / "return.py").exists()
+    (project / "custom_templates" / "return.py").unlink()
+
+    (project / "email_templates" / "bad.py").write_text(
+        'raise RuntimeError("boom")\nTEMPLATE_KEY = "bad"\nSUBJECT = "Bad"\n'
+        "def render_html(context):\n    return ''\ndef render_text(context):\n    return ''\n"
+    )
+    assert runner.invoke(cli, ["email", "mount"]).exit_code != 0
+    assert mounted.read_text() == before
+    (project / "email_templates" / "bad.py").unlink()
+
+    result = runner.invoke(cli, ["email", "add-template", "--template-key", "otp"])
+    assert result.exit_code == 0 and 'template_key="otp"' in result.output
+    assert runner.invoke(cli, ["email", "mount"]).exit_code == 0
+    assert "email_templates.otp_template" in mounted.read_text()
+
+
+def test_email_commands_refuse_to_run_outside_a_project(runner):
+    assert runner.invoke(cli, ["email", "mount"]).exit_code != 0
+    assert not (Path.cwd() / "email_templates").exists()
+
+
+def test_make_token_repo_protects_edits_validates_roles_and_keeps_project_roles(runner):
+    project = _new_project(runner)
+    os.chdir(project)
+    tokens = project / "repositories" / "tokens_repo.py"
+    tokens.write_text(tokens.read_text() + "# my edit\n")
+    assert runner.invoke(cli, ["make-token-repo", "admin", "user"]).exit_code != 0
+    assert runner.invoke(cli, ["make-token-repo", "admin", "support.agent", "--force"]).exit_code != 0
+    assert "# my edit" in tokens.read_text()
+
+    assert runner.invoke(cli, ["make-account", "customer"]).exit_code == 0
+    result = runner.invoke(cli, ["make-token-repo", "--force"])
+    assert result.exit_code == 0 and "admin, user, customer" in result.output
+    assert "def add_customer_access_token" in tokens.read_text()
+    assert (project / "repositories" / "tokens_repo.py.bak").exists()
+
+
+def test_project_python_prefers_the_project_environment(tmp_path, monkeypatch):
+    import sys
+    from fasterapi.scaffolder.project_python import project_python
+
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+    assert project_python(tmp_path) == sys.executable
+    local = tmp_path / ".venv" / "bin" / "python"
+    local.parent.mkdir(parents=True)
+    local.write_text("")
+    assert project_python(tmp_path) == str(local)
+    active = tmp_path / "active" / "bin" / "python"
+    active.parent.mkdir(parents=True)
+    active.write_text("")
+    monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / "active"))
+    assert project_python(tmp_path) == str(active)
+
+
+def test_new_projects_never_include_bytecode_caches(runner, tmp_path):
+    cache = Path(__file__).resolve().parents[1] / "templates" / "project_template" / "core" / "__pycache__"
+    cache.mkdir(exist_ok=True)
+    try:
+        project = _new_project(runner)
+        assert not list(project.rglob("__pycache__"))
+    finally:
+        shutil.rmtree(cache, ignore_errors=True)

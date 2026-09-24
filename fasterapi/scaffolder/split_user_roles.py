@@ -297,6 +297,13 @@ def perform_unsplit(force: bool = False) -> bool:
     return True
 
 
+def current_account_roles(root: Path) -> list[str]:
+    """Every non-admin role the project has: user or its split roles, plus make-account roles."""
+    state = _read_state(root)
+    base_roles = list(state.roles) if state and state.mode == "split" else ["user"]
+    return [*base_roles, *(state.extra_roles if state else ())]
+
+
 def _current_split_roles(root: Path, state: RoleSplitState | None) -> list[str]:
     if state and state.mode == "split":
         return list(state.roles)

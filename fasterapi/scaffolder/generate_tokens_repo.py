@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from textwrap import dedent
 
@@ -14,6 +15,8 @@ def _normalize_roles(roles: list[str]) -> list[str]:
         role = _sanitize_role(raw_role)
         if not role or role in normalized:
             continue
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", role):
+            raise ValueError(f"Invalid role name '{raw_role}': use lowercase letters, digits and underscores")
         normalized.append(role)
 
     if "admin" not in normalized:

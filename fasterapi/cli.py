@@ -9,9 +9,11 @@ from fasterapi.scaffolder.mount_routes import update_main_routes
 from fasterapi.scaffolder.generate_tokens_repo import create_token_file
 from fasterapi.scaffolder.generate_account import create_account_files
 from fasterapi.scaffolder.split_user_roles import (
+    current_account_roles,
     run_split_user_wizard,
     run_unsplit_user_wizard,
 )
+from fasterapi.scaffolder.project_python import project_python
 from fasterapi.scaffolder.email_templates import (
     add_email_template,
     mount_custom_email_templates,
@@ -20,7 +22,9 @@ from fasterapi.scaffolder.email_templates import (
 from fasterapi.scaffolder.database_setup import BACKENDS, use_database
 from fasterapi.scaffolder import deploy as deploy_tools
 from pathlib import Path
+import shutil
 import subprocess
+import sys
 
 @click.group()
 @click.version_option(__version__, '--version', '-v', message='FasterAPI version %(version)s')
@@ -243,16 +247,18 @@ def run_d():
 
     Notes:
         - This is equivalent to running:
-            uvicorn main:app --reload
-        - Ensure you have Uvicorn installed (pip install uvicorn).
+            python -m uvicorn main:app --reload
+        - Uses the active virtualenv, or a .venv/venv folder in the project, so the
+          app runs with the project's own dependencies.
     """
+    process = subprocess.Popen([project_python(), "-m", "uvicorn", "main:app", "--reload"])
     try:
-        subprocess.run(["uvicorn", "main:app", "--reload"], check=True)
-    except FileNotFoundError:
-        click.secho("❌ Uvicorn is not installed. Run 'pip install uvicorn' and try again.", fg="red")
-        raise click.Abort()
-    except subprocess.CalledProcessError as e:
-        click.secho(f"❌ Failed to start server: {e}", fg="red")
+        return_code = process.wait()
+    except KeyboardInterrupt:
+        # Uvicorn got the same Ctrl+C; let it finish shutting down instead of killing it.
+        return_code = process.wait()
+    if return_code not in (0, -2, 130):
+        click.secho("❌ The server exited with an error. Is uvicorn installed in the project environment?", fg="red")
         raise click.Abort()
 
 
@@ -269,13 +275,12 @@ def update():
         fasterapi update extra   # This command takes no arguments
 
     Notes:
-        - This will run:
-            pip install --upgrade nats-fasterapi
-        - Ensure you have pip available in your PATH.
+        - This will run pip for the Python that runs this CLI:
+            python -m pip install --upgrade nats-fasterapi
     """
     try:
         subprocess.run(
-            ["pip", "install", "--upgrade", "nats-fasterapi"],
+            [sys.executable, "-m", "pip", "install", "--upgrade", "nats-fasterapi"],
             check=True
         )
         click.secho("✅ FasterAPI has been upgraded to the latest version!", fg="green")
@@ -350,36 +355,44 @@ def make_route(name, version_mode, yes):
  
 @cli.command()
 @click.argument("roles", nargs=-1)
-def make_token_repo(roles):
+@click.option("--force", is_flag=True, help="Replace an existing repositories/tokens_repo.py (a .bak copy is kept).")
+def make_token_repo(roles, force):
     """
-    Generate a token repository based on roles.
+    Generate repositories/tokens_repo.py with token helpers for each role.
 
     \b
     ✅ Good usage:
-        fasterapi make-token-repo admin user
-        fasterapi make-token-repo staff guest-editor
-        fasterapi make-token-repo                 # Defaults will be used
+        fasterapi make-token-repo --force                  # the project's current roles
+        fasterapi make-token-repo admin user support --force
 
     ❌ Bad usage:
-        fasterapi make-token-repo admin 1 3 , @! user staff extra-role arg  
+        fasterapi make-token-repo admin 1 @!               # invalid role names
 
     Notes:
-        - Provide one or more roles (space-separated).
-        - If no roles are provided, defaults will be used:
-          admin, user, staff, guest-editor
+        - Without ROLES, uses the project's current roles: admin, user (or its
+          split-user roles) and any make-account roles.
+        - Role names are lowercase letters, digits and underscores ("-" becomes "_").
     """
     if not roles:
-        roles = ["admin", "user"]
-        click.secho(
-            f"⚠️ No roles provided. Using default roles: {', '.join(roles)}",
-            fg="yellow"
-        )
+        roles = ["admin", *current_account_roles(Path.cwd())]
+        click.secho(f"ℹ️ Using the project's roles: {', '.join(roles)}", fg="cyan")
 
-    create_token_file(roles)
-    click.secho(
-        f"✅ Token repository generated successfully for roles: {', '.join(roles)}",
-        fg="green"
-    )
+    target = Path.cwd() / "repositories" / "tokens_repo.py"
+    if target.exists() and not force:
+        click.secho(
+            "❌ repositories/tokens_repo.py already exists. Re-run with --force to replace it (a .bak copy is kept).",
+            fg="red",
+        )
+        raise click.Abort()
+
+    backup = target.with_name("tokens_repo.py.bak")
+    if target.exists():
+        shutil.copy2(target, backup)
+    try:
+        create_token_file(list(roles))
+    except ValueError as e:
+        click.secho(f"❌ {e}", fg="red")
+        raise click.Abort()
 
 
 @cli.group()

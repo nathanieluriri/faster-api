@@ -101,7 +101,7 @@ fasterapi run-d
 | `make-service <name>` | Generate service layer template |
 | `make-route <name> [--version-mode ...]` | Generate route files with API versioning |
 | `make-account <name>` | Add a new account type (e.g. `customer`) with its own signup, login, tokens and permission checks |
-| `make-token-repo [roles...]` | Generate token repository for roles |
+| `make-token-repo [roles...] [--force]` | Regenerate the token repository (defaults to the project's roles; keeps a `.bak`) |
 | `split-user [--force]` | Interactively split `user` into custom non-admin roles |
 | `unsplit-user [--force]` | Collapse split custom roles back into canonical `user` |
 | `mount` | Mount routes into `main.py` |
@@ -165,6 +165,22 @@ your own proxies append are trusted, so a forged header can't dodge the limit. S
 `TRUSTED_PROXY_HOPS` to the number of proxies in front of the app: `1` for Vercel, Cloud Run,
 Render, Fly or nginx (the default), `2` behind a Google Cloud external load balancer, `0` when
 clients connect directly.
+
+## Uploads, Payments and Email
+
+- **Uploads:** `POST /v1/documents/upload-intents` returns an `upload_url`, a `method` and, for
+  S3, `form_fields`. Send the file as `multipart/form-data` (S3: the form fields plus `file`;
+  local storage: just `file`), then call `/v1/documents/complete` with the `object_key`.
+  Only the account that created the intent can complete it, files are capped at 50 MB, and
+  download links are signed and expire, on local storage as well as S3.
+- **Payments:** references are 3 to 64 letters, digits, `-` or `_`, and a reference can't be
+  reused by another account. Webhooks must be signed (`STRIPE_WEBHOOK_SECRET`,
+  `FLW_WEBHOOK_SECRET_HASH`); a payment is only marked paid when the provider confirms the
+  expected amount and currency. Refunds, including partial ones, are admin-only.
+- **Email:** set `EMAIL_SECURITY` (`ssl`, `starttls` or `none`) or let it follow the port, and
+  `EMAIL_TIMEOUT_SECONDS`. TLS certificates are verified. Values passed to templates are
+  HTML-escaped in the HTML version; wrap trusted HTML in `markupsafe.Markup` to keep it as is.
+  One broken template no longer disables the others.
 
 ## Deploying
 

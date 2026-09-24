@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import html
 import logging
+import smtplib
+import ssl
 from threading import Lock
 from typing import Any
 
-from core.email.transport import SMTPTransport, SmtpConfig
+from core.email.transport import SMTPTransport, SmtpConfig, default_security
 from core.email.types import EmailDispatchRequest, EmailMessage, EmailSendResult, MountedTemplate
 from core.settings import get_settings
 
@@ -42,8 +45,8 @@ class EmailManager:
         settings = get_settings()
 
         transport: SMTPTransport | None = None
-        if settings.email_host and settings.email_username and settings.email_password:
-            from_email = settings.email_from_email or settings.email_username
+        from_email = settings.email_from_email or settings.email_username
+        if settings.email_host and from_email:
             transport = SMTPTransport(
                 SmtpConfig(
                     host=settings.email_host,
@@ -51,6 +54,8 @@ class EmailManager:
                     username=settings.email_username,
                     password=settings.email_password,
                     from_email=from_email,
+                    security=settings.email_security or default_security(settings.email_port),
+                    timeout_seconds=settings.email_timeout_seconds,
                 )
             )
 
@@ -65,10 +70,16 @@ class EmailManager:
         try:
             from core.email.mounted_templates import get_mounted_templates
 
-            for mounted in get_mounted_templates():
-                manager.mount_template(mounted)
+            mounted_templates = get_mounted_templates()
         except Exception as exc:
-            manager._logger.warning("Email templates could not be loaded during startup: %s", exc)
+            manager._logger.error("Email templates could not be loaded during startup: %s", exc)
+            mounted_templates = []
+        for mounted in mounted_templates:
+            # One bad template must not take every other template down with it.
+            try:
+                manager.mount_template(mounted)
+            except Exception as exc:
+                manager._logger.error("Email template %r was not mounted: %s", getattr(mounted, "key", mounted), exc)
 
         return cls.configure(manager)
 
@@ -96,10 +107,13 @@ class EmailManager:
 
         should_queue = mode == "queued" or (mode == "auto" and self._queue_enabled)
         if should_queue:
+            # Fail now on a typo, rather than reporting "queued" and failing later in the worker.
+            self._template(request.template_key)
             try:
                 from core.queue.manager import QueueManager
 
-                queue_result = QueueManager.get_instance().enqueue(
+                queue_result = await asyncio.to_thread(
+                    QueueManager.get_instance().enqueue,
                     "send_email",
                     {
                         "to_email": request.to_email,
@@ -141,6 +155,8 @@ class EmailManager:
                     self._retry_attempts,
                     message.to_email,
                 )
+                if _is_permanent(exc):
+                    break
                 if attempt < self._retry_attempts and self._retry_backoff_seconds > 0:
                     await asyncio.sleep(self._retry_backoff_seconds * attempt)
 
@@ -148,22 +164,48 @@ class EmailManager:
             f"Unable to send email after {self._retry_attempts} attempts"
         ) from last_error
 
-    def _render(self, template_key: str, context: dict[str, Any] | Any) -> tuple[str, str, str]:
-        key = template_key.strip().lower()
-        template = self._templates.get(key)
+    def _template(self, template_key: str) -> MountedTemplate:
+        template = self._templates.get(template_key.strip().lower())
         if template is None:
             available = ", ".join(self.list_template_keys()) or "<none>"
             raise ValueError(f"Template '{template_key}' is not mounted. Available: {available}")
+        return template
+
+    def _render(self, template_key: str, context: dict[str, Any] | Any) -> tuple[str, str, str]:
+        template = self._template(template_key)
 
         payload = dict(context or {})
         try:
             subject = template.subject.format(**payload)
         except Exception:
             subject = template.subject
+        # Line breaks in a header would let a value inject extra headers.
+        subject = " ".join(subject.splitlines())
 
-        html_body = template.render_html(payload)
+        html_body = template.render_html(_escape_for_html(payload))
         text_body = template.render_text(payload)
         if not isinstance(html_body, str) or not isinstance(text_body, str):
             raise TypeError(f"Template '{template.key}' renderers must return strings")
 
         return subject, html_body, text_body
+
+
+def _escape_for_html(value: Any) -> Any:
+    """Escape user-supplied values for HTML templates; objects with __html__ (e.g. markupsafe.Markup) are trusted."""
+    if hasattr(value, "__html__"):
+        return value
+    if isinstance(value, str):
+        return html.escape(value, quote=True)
+    if isinstance(value, dict):
+        return {key: _escape_for_html(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return type(value)(_escape_for_html(item) for item in value)
+    return value
+
+
+def _is_permanent(exc: Exception) -> bool:
+    # Retrying can't fix bad credentials, rejected addresses, config errors or certificate problems.
+    if isinstance(exc, (smtplib.SMTPAuthenticationError, smtplib.SMTPRecipientsRefused,
+                        smtplib.SMTPNotSupportedError, ssl.SSLCertVerificationError, ValueError)):
+        return True
+    return isinstance(exc, smtplib.SMTPResponseException) and exc.smtp_code >= 500

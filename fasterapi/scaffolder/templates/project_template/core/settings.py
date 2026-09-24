@@ -34,6 +34,8 @@ class Settings:
     email_retry_attempts: int
     email_retry_backoff_seconds: float
     email_queue_enabled: bool
+    email_security: str
+    email_timeout_seconds: float
     cors_origins: tuple[str, ...]
     debug_include_error_details: bool
     redis_url: str
@@ -69,14 +71,16 @@ def get_settings() -> Settings:
         secret_key=secret_key,
         session_secret_key=session_secret_key,
         email_host=os.getenv("EMAIL_HOST"),
-        email_port=int(os.getenv("EMAIL_PORT", "587")),
+        email_port=int(os.getenv("EMAIL_PORT") or 587),
         email_username=os.getenv("EMAIL_USERNAME"),
         email_password=os.getenv("EMAIL_PASSWORD"),
         email_from_email=os.getenv("EMAIL_FROM_EMAIL"),
         email_sender_name=os.getenv("EMAIL_SENDER_NAME", "FasterAPI"),
-        email_retry_attempts=int(os.getenv("EMAIL_RETRY_ATTEMPTS", "3")),
-        email_retry_backoff_seconds=float(os.getenv("EMAIL_RETRY_BACKOFF_SECONDS", "1.0")),
+        email_retry_attempts=int(os.getenv("EMAIL_RETRY_ATTEMPTS") or 3),
+        email_retry_backoff_seconds=float(os.getenv("EMAIL_RETRY_BACKOFF_SECONDS") or 1.0),
         email_queue_enabled=os.getenv("EMAIL_QUEUE_ENABLED", "true").lower() in {"1", "true", "yes"},
+        email_security=(os.getenv("EMAIL_SECURITY") or "").lower(),
+        email_timeout_seconds=float(os.getenv("EMAIL_TIMEOUT_SECONDS") or 15),
         cors_origins=_split_csv(os.getenv("CORS_ORIGINS")),
         debug_include_error_details=os.getenv("DEBUG_INCLUDE_ERROR_DETAILS", "false").lower()
         in {"1", "true", "yes"},

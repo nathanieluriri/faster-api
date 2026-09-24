@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import ast
+import keyword
 import shutil
+import subprocess
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -9,6 +11,8 @@ import re
 from typing import Sequence
 
 import click
+
+from fasterapi.scaffolder.project_python import project_python
 
 
 @dataclass(frozen=True)
@@ -126,7 +130,10 @@ def _mount_error_file_path() -> Path:
     return _project_root() / "email_mount_errors.log"
 
 
-def _ensure_template_dirs() -> None:
+def _ensure_template_dirs() -> bool:
+    if not (_project_root() / "main.py").exists() or not (_project_root() / "core").is_dir():
+        click.secho("Run this from a FasterAPI project root (main.py and core/ are required).", fg="red")
+        return False
     email_dir = _email_templates_dir()
     custom_dir = _custom_templates_dir()
     core_email_dir = _project_root() / "core" / "email"
@@ -138,14 +145,7 @@ def _ensure_template_dirs() -> None:
     init_file = email_dir / "__init__.py"
     if not init_file.exists():
         init_file.write_text("", encoding="utf-8")
-
-
-
-def _sanitize_alias(name: str) -> str:
-    safe = re.sub(r"\W+", "_", name)
-    if safe and safe[0].isdigit():
-        safe = f"template_{safe}"
-    return safe.lower() or "template_alias"
+    return True
 
 
 
@@ -165,26 +165,27 @@ def _extract_assigned_string(module: ast.Module, variable_name: str) -> str | No
 
 
 def _has_renderer_function(module: ast.Module, function_name: str) -> bool:
+    # The manager calls render_x(context) synchronously, so it must be a plain def taking one positional argument.
     for node in module.body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == function_name:
-            positional_args = len(node.args.args)
-            kwonly_args = len(node.args.kwonlyargs)
-            return positional_args + kwonly_args > 0
+        if isinstance(node, ast.FunctionDef) and node.name == function_name:
+            return len(node.args.posonlyargs) + len(node.args.args) > 0
     return False
 
 
 
 def _validate_template_file(path: Path) -> tuple[TemplateSpec | None, list[str]]:
     errors: list[str] = []
-    if not path.stem.isidentifier():
+    if not path.stem.isidentifier() or keyword.iskeyword(path.stem):
         errors.append(
-            f"{path.name}: filename is not a valid Python module name; use letters, numbers, and underscores only"
+            f"{path.name}: filename is not a valid Python module name; use letters, numbers, and underscores "
+            "only, and not a Python keyword"
         )
         return None, errors
 
     try:
-        parsed = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    except (OSError, SyntaxError) as exc:
+        # Parsing bytes lets Python honour a BOM or a coding declaration, as it does on import.
+        parsed = ast.parse(path.read_bytes(), filename=str(path))
+    except (OSError, SyntaxError, ValueError) as exc:
         return None, [f"{path.name}: failed to parse template ({exc})"]
 
     template_key = _extract_assigned_string(parsed, "TEMPLATE_KEY")
@@ -196,10 +197,10 @@ def _validate_template_file(path: Path) -> tuple[TemplateSpec | None, list[str]]
         errors.append(f"{path.name}: missing string constant SUBJECT")
 
     if not _has_renderer_function(parsed, "render_html"):
-        errors.append(f"{path.name}: missing render_html(context) function")
+        errors.append(f"{path.name}: missing render_html(context) function (a regular def, not async)")
 
     if not _has_renderer_function(parsed, "render_text"):
-        errors.append(f"{path.name}: missing render_text(context) function")
+        errors.append(f"{path.name}: missing render_text(context) function (a regular def, not async)")
 
     if errors:
         return None, errors
@@ -226,9 +227,8 @@ def _discover_template_specs() -> tuple[list[TemplateSpec], list[str]]:
     )
 
     if not template_files:
-        return [], [
-            "No templates were found in email_templates/. Add one with 'fasterapi email add-template'."
-        ]
+        click.secho("No templates in email_templates/; mounting none. Add one with 'fasterapi email add-template'.", fg="yellow")
+        return [], []
 
     for template_file in template_files:
         spec, file_errors = _validate_template_file(template_file)
@@ -255,57 +255,38 @@ def _discover_template_specs() -> tuple[list[TemplateSpec], list[str]]:
 
 
 def _generate_mounted_templates_module(specs: Sequence[TemplateSpec]) -> str:
-    import_lines: list[str] = [
-        "from __future__ import annotations",
-        "",
-        "from core.email.types import MountedTemplate",
-    ]
+    modules = "".join(f'    "email_templates.{spec.module_name}",\n' for spec in specs)
+    return f'''from __future__ import annotations
 
-    entry_lines: list[str] = []
+import logging
+from importlib import import_module
 
-    for spec in specs:
-        alias = _sanitize_alias(spec.module_name)
-        import_lines.append(
-            f"from email_templates.{spec.module_name} import SUBJECT as {alias}_subject"
-        )
-        import_lines.append(
-            f"from email_templates.{spec.module_name} import TEMPLATE_KEY as {alias}_key"
-        )
-        import_lines.append(
-            f"from email_templates.{spec.module_name} import render_html as {alias}_render_html"
-        )
-        import_lines.append(
-            f"from email_templates.{spec.module_name} import render_text as {alias}_render_text"
-        )
-        entry_lines.extend(
-            [
-                "        MountedTemplate(",
-                f"            key={alias}_key,",
-                f"            subject={alias}_subject,",
-                f"            render_html={alias}_render_html,",
-                f"            render_text={alias}_render_text,",
-                "        ),",
-            ]
-        )
+from core.email.types import MountedTemplate
 
-    if specs:
-        import_lines.append("")
-        body = [
-            "def get_mounted_templates() -> list[MountedTemplate]:",
-            "    return [",
-            *entry_lines,
-            "    ]",
-            "",
-        ]
-    else:
-        import_lines.append("")
-        body = [
-            "def get_mounted_templates() -> list[MountedTemplate]:",
-            "    return []",
-            "",
-        ]
+# Generated by `fasterapi email mount`. Each template is imported on its own, so one broken template
+# is logged and skipped instead of disabling every email.
+_MODULES = [
+{modules}]
 
-    return "\n".join(import_lines + body)
+
+def get_mounted_templates() -> list[MountedTemplate]:
+    templates: list[MountedTemplate] = []
+    for name in _MODULES:
+        try:
+            module = import_module(name)
+        except Exception:
+            logging.getLogger(__name__).exception("Email template module %s failed to import", name)
+            continue
+        templates.append(
+            MountedTemplate(
+                key=module.TEMPLATE_KEY,
+                subject=module.SUBJECT,
+                render_html=module.render_html,
+                render_text=module.render_text,
+            )
+        )
+    return templates
+'''
 
 
 
@@ -333,7 +314,8 @@ def list_template_examples() -> tuple[TemplateExample, ...]:
 
 
 def add_email_template(*, template_key: str | None = None, force: bool = False) -> bool:
-    _ensure_template_dirs()
+    if not _ensure_template_dirs():
+        return False
 
     examples_by_key = {example.key: example for example in EXAMPLES}
     selected_example: TemplateExample | None = None
@@ -397,13 +379,17 @@ def add_email_template(*, template_key: str | None = None, force: bool = False) 
         f"Template '{selected_example.key}' added to email_templates/{selected_example.filename}",
         fg="green",
     )
+    send_key = _extract_assigned_string(ast.parse(destination.read_bytes()), "TEMPLATE_KEY")
+    if send_key:
+        click.secho(f"Send it with template_key=\"{send_key}\".", fg="cyan")
     click.secho("Run 'fasterapi email mount' to register this template.", fg="cyan")
     return True
 
 
 
 def mount_email_templates(*, extra_errors: Sequence[str] | None = None) -> bool:
-    _ensure_template_dirs()
+    if not _ensure_template_dirs():
+        return False
 
     specs, errors = _discover_template_specs()
     combined_errors = list(errors)
@@ -421,7 +407,24 @@ def mount_email_templates(*, extra_errors: Sequence[str] | None = None) -> bool:
 
     mount_file = _mount_file_path()
     mount_file.parent.mkdir(parents=True, exist_ok=True)
+    previous = mount_file.read_text(encoding="utf-8") if mount_file.exists() else None
     mount_file.write_text(_generate_mounted_templates_module(specs), encoding="utf-8")
+
+    import_error = _mounted_templates_import_error()
+    if import_error and not _is_missing_third_party_module(import_error):
+        if previous is None:
+            mount_file.unlink()
+        else:
+            mount_file.write_text(previous, encoding="utf-8")
+        log_path = _write_mount_error_log([f"Mounted templates failed to import: {import_error}"])
+        click.secho("Email template mount failed: the templates don't import cleanly.", fg="red")
+        click.secho(f"Log file: {log_path}", fg="yellow")
+        return False
+    if import_error:
+        click.secho(
+            f"Couldn't verify the templates import ({import_error}); install the project's requirements to check.",
+            fg="yellow",
+        )
     _remove_mount_error_log_if_present()
     click.secho(
         f"Mounted {len(specs)} email template(s) into core/email/mounted_templates.py",
@@ -431,8 +434,26 @@ def mount_email_templates(*, extra_errors: Sequence[str] | None = None) -> bool:
 
 
 
+def _mounted_templates_import_error() -> str | None:
+    completed = subprocess.run(
+        [project_python(), "-c", "import importlib; from core.email.mounted_templates import _MODULES; [importlib.import_module(m) for m in _MODULES]"],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    if completed.returncode == 0:
+        return None
+    return (completed.stderr.strip().splitlines() or ["unknown import error"])[-1]
+
+
+def _is_missing_third_party_module(error: str) -> bool:
+    missing = re.search(r"No module named '([^']+)'", error)
+    return bool(missing) and not missing.group(1).startswith(("core", "email_templates"))
+
+
 def mount_custom_email_templates(*, force: bool = False) -> bool:
-    _ensure_template_dirs()
+    if not _ensure_template_dirs():
+        return False
 
     custom_files = sorted(
         path for path in _custom_templates_dir().glob("*.py") if path.name != "__init__.py"
@@ -446,20 +467,21 @@ def mount_custom_email_templates(*, force: bool = False) -> bool:
 
     for custom_file in custom_files:
         spec, validation_errors = _validate_template_file(custom_file)
-        if validation_errors:
-            pre_mount_errors.extend(validation_errors)
-            continue
-
+        pre_mount_errors.extend(validation_errors)
         destination = _email_templates_dir() / custom_file.name
-        if destination.exists() and not force:
+        if not validation_errors and destination.exists() and not force:
             pre_mount_errors.append(
                 f"{custom_file.name}: destination already exists in email_templates/ (use --force to overwrite)"
             )
-            continue
 
-        if destination.exists() and force:
+    # Move nothing unless every custom template is valid, so a failed run leaves the folders as they were.
+    if pre_mount_errors:
+        return mount_email_templates(extra_errors=pre_mount_errors)
+
+    for custom_file in custom_files:
+        destination = _email_templates_dir() / custom_file.name
+        if destination.exists():
             destination.unlink()
-
         shutil.move(str(custom_file), str(destination))
         moved_files.append(destination.name)
 
