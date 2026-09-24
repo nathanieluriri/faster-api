@@ -6,12 +6,10 @@ def update_main_routes():
     main_file = project_path / "main.py"
 
     if not api_dir.exists():
-        print("⚠️  Couldn't find 'api/' folder. Are you running this from your project root directory?")
-        return
+        raise FileNotFoundError("Couldn't find 'api/' folder. Are you running this from your project root directory?")
 
     if not main_file.exists():
-        print("❌ 'main.py' not found in project root. Make sure you're in the right directory.")
-        return
+        raise FileNotFoundError("'main.py' not found in project root. Make sure you're in the right directory.")
 
     route_imports = []
     include_lines = []
@@ -38,19 +36,14 @@ def update_main_routes():
             include_lines.append(f"app.include_router({router_alias}, prefix='{prefix}')")
 
     if not route_imports:
-        print("⚠️  No route modules found in version folders.")
-        return
+        raise FileNotFoundError("No route modules found in api/v* folders.")
 
     # Prepare block
     start_tag = "# --- auto-routes-start ---"
     end_tag = "# --- auto-routes-end ---"
     new_block = f"{start_tag}\n" + "\n".join(route_imports + [""] + include_lines) + f"\n{end_tag}"
 
-    try:
-        main_contents = main_file.read_text()
-    except Exception as e:
-        print(f"❌ Failed to read main.py: {e}")
-        return
+    main_contents = main_file.read_text(encoding="utf-8")
 
     if start_tag in main_contents and end_tag in main_contents:
         updated = (
@@ -61,8 +54,5 @@ def update_main_routes():
     else:
         updated = main_contents.strip() + "\n\n" + new_block
 
-    try:
-        main_file.write_text(updated)
-        print(f"✅ main.py updated with routes from: {[f.name for f in version_dir.glob('*.py') if f.name != '__init__.py']}")
-    except Exception as e:
-        print(f"❌ Failed to write to main.py: {e}")
+    main_file.write_text(updated, encoding="utf-8")
+    print(f"✅ main.py updated with {len(route_imports)} route module(s).")

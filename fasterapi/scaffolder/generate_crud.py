@@ -9,7 +9,12 @@ def create_crud_file(name: str):
 
     if not schema_path.exists():
         print(f"❌ Schema file {schema_path} not found.")
-        return
+        print(f"💡 Run: fasterapi make-schema {db_name}")
+        return False
+
+    if repo_path.exists():
+        print(f"⚠️  Repository already exists: repositories/{db_name}.py")
+        return False
 
     class_name = "".join([part.capitalize() for part in db_name.split("_")]) + "Base"
     update_class_name = "".join([part.capitalize() for part in db_name.split("_")]) + "Update"
@@ -91,7 +96,9 @@ async def delete_{db_name}(filter_dict: dict):
     return await db.{db_name}s.delete_one(filter_dict)
 '''.strip()
 
+    repo_path.parent.mkdir(parents=True, exist_ok=True)
     with open(repo_path, "w",encoding="utf-8") as f:
         f.write(crud_code)
 
-    print(f"✅ CRUD for '{db_name}' created in repository/{db_name}.py")
+    print(f"✅ CRUD for '{db_name}' created in repositories/{db_name}.py")
+    return True

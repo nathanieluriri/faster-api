@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
+from authlib.integrations.starlette_client import OAuthError
 
 from core.response_envelope import document_response
 from schemas.user_schema import LoginType, UserBase, UserCreate, UserOut, UserRefresh
@@ -29,36 +30,37 @@ ERROR_PAGE_URL = os.getenv("ERROR_PAGE_URL", "http://localhost:8080/error")
 @router.get("/google/auth")
 async def login_with_google_account(request: Request):
     redirect_uri = request.url_for("auth_callback_user")
-    print("REDIRECT URI:", redirect_uri)
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
 @router.get("/auth/callback")
 async def auth_callback_user(request: Request):
-    token = await oauth.google.authorize_access_token(request)
-    user_info = token.get("userinfo")
+    try:
+        token = await oauth.google.authorize_access_token(request)
+    except OAuthError:
+        return RedirectResponse(url=f"{ERROR_PAGE_URL}?error=oauth_failed", status_code=status.HTTP_302_FOUND)
+    user_info = token.get("userinfo") or {}
 
-    if user_info:
-        print("✅ Google user info:", user_info)
-        rider = UserBase(
-            firstName=user_info["name"],
-            password="",
-            lastName=user_info["given_name"],
-            email=user_info["email"],
-            loginType=LoginType.google,
-        )
-        data = await authenticate_user_google(user_data=rider)
-        access_token = data.access_token
-        refresh_token = data.refresh_token
+    if not (user_info.get("email") and user_info.get("email_verified")):
+        return RedirectResponse(url=f"{ERROR_PAGE_URL}?error=email_not_verified", status_code=status.HTTP_302_FOUND)
 
-        success_url = f"{SUCCESS_PAGE_URL}?access_token={access_token}&refresh_token={refresh_token}"
+    google_user = UserBase(
+        firstName=user_info.get("given_name") or user_info.get("name") or "",
+        lastName=user_info.get("family_name") or "",
+        password="",
+        email=user_info["email"],
+        loginType=LoginType.google,
+    )
+    try:
+        data = await authenticate_user_google(user_data=google_user)
+    except HTTPException:
+        return RedirectResponse(url=f"{ERROR_PAGE_URL}?error=account_exists", status_code=status.HTTP_302_FOUND)
 
-        return RedirectResponse(
-            url=success_url,
-            status_code=status.HTTP_302_FOUND,
-        )
-
-    raise HTTPException(status_code=400, detail={"message": "No user info found"})
+    # Tokens travel in the URL fragment, which browsers never send to servers, logs or Referer headers.
+    return RedirectResponse(
+        url=f"{SUCCESS_PAGE_URL}#access_token={data.access_token}&refresh_token={data.refresh_token}",
+        status_code=status.HTTP_302_FOUND,
+    )
 
 
 @router.get(
@@ -88,7 +90,10 @@ async def get_my_users(user: UserOut = Depends(check_user_account_status_and_per
     status_code=status.HTTP_201_CREATED,
 )
 async def signup_new_user(user_data: UserBase):
-    new_user = UserCreate(**user_data.model_dump())
+    if len(user_data.password) < 8:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Password must be at least 8 characters")
+    # This endpoint only creates password accounts; Google accounts come from the OAuth callback.
+    new_user = UserCreate(**{**user_data.model_dump(), "loginType": LoginType.email})
     items = await add_user(user_data=new_user)
     return items
 

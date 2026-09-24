@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from bson import ObjectId
+from pymongo import ReturnDocument
 
 from core.database import db
 from schemas.document_schema import DocumentCreate, DocumentOut
@@ -34,3 +35,12 @@ async def delete_document(document_id: str) -> bool:
         return False
     result = await db.documents.delete_one({"_id": ObjectId(document_id)})
     return bool(result.deleted_count)
+
+
+async def update_document(document_id: str, changes: dict) -> DocumentOut | None:
+    if not ObjectId.is_valid(document_id):
+        return None
+    row = await db.documents.find_one_and_update(
+        {"_id": ObjectId(document_id)}, {"$set": changes}, return_document=ReturnDocument.AFTER
+    )
+    return DocumentOut(**row) if row else None

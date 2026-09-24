@@ -18,6 +18,7 @@ from fasterapi.scaffolder.mount_routes import update_main_routes
 ROLE_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 RESERVED_ROLE_NAMES = {"admin", "anonymous", "member", "user"}
 SPLIT_STATE_FILE = Path(".fasterapi") / "role_split_state.json"
+TEMPLATE_ROOT = Path(__file__).parent / "templates" / "project_template"
 DEFAULT_ANONYMOUS_RATE = "20/minute"
 DEFAULT_ROLE_RATE = "80/minute"
 DEFAULT_ADMIN_RATE = "140/minute"
@@ -43,6 +44,8 @@ class RoleSplitState:
     touched_files: tuple[str, ...]
     archived_at: str | None = None
     last_unsplit_at: str | None = None
+    # Roles added with make-account; split-user and unsplit-user keep them.
+    extra_roles: tuple[str, ...] = ()
 
     def to_dict(self) -> dict:
         return {
@@ -54,6 +57,7 @@ class RoleSplitState:
             "touched_files": list(self.touched_files),
             "archived_at": self.archived_at,
             "last_unsplit_at": self.last_unsplit_at,
+            "extra_roles": list(self.extra_roles),
         }
 
 
@@ -86,8 +90,7 @@ def run_split_user_wizard(force: bool = False) -> bool:
 def run_unsplit_user_wizard(force: bool = False) -> bool:
     """Run the interactive unsplit-user flow and apply conversion."""
     project_root = Path.cwd()
-    state = _read_state(project_root)
-    roles = list(state.roles) if state and state.mode == "split" else _detect_split_roles(project_root)
+    roles = _current_split_roles(project_root, _read_state(project_root))
 
     if not roles:
         click.echo("ℹ️ No split roles detected. Project is already in unsplit mode.")
@@ -111,6 +114,12 @@ def perform_split(roles: list[str], force: bool = False) -> bool:
     if existing_state and existing_state.mode == "split" and list(existing_state.roles) == validated_roles:
         click.echo(f"ℹ️ Project already split into {_humanize_roles(validated_roles)}. No changes required.")
         return True
+
+    extra_roles = list(existing_state.extra_roles) if existing_state else []
+    clashes = sorted(set(validated_roles) & set(extra_roles))
+    if clashes:
+        raise click.ClickException(f"Role(s) already exist from make-account: {', '.join(clashes)}")
+    runtime_roles = [*validated_roles, *extra_roles]
 
     files_to_touch = _collect_split_touch_files(validated_roles)
     if not force:
@@ -158,11 +167,11 @@ def perform_split(roles: list[str], force: bool = False) -> bool:
         if file_path.exists():
             file_path.unlink()
 
-    _write_role_runtime_files(layout.root, non_admin_roles=validated_roles)
-    create_token_file(["admin", *validated_roles])
+    _write_role_runtime_files(layout.root, non_admin_roles=runtime_roles)
+    create_token_file(["admin", *runtime_roles])
     update_main_routes()
 
-    rate_limits_csv = _build_role_rate_limits_csv(validated_roles)
+    rate_limits_csv = _build_role_rate_limits_csv(runtime_roles)
     _upsert_env_var(layout.root / ".env.example", "ROLE_RATE_LIMITS", rate_limits_csv)
 
     touched_files = sorted(set(files_to_touch + generated_files + archived_files))
@@ -174,6 +183,7 @@ def perform_split(roles: list[str], force: bool = False) -> bool:
         created_at=_iso_now(),
         touched_files=tuple(touched_files),
         archived_at=timestamp,
+        extra_roles=tuple(extra_roles),
     )
     _write_state(layout.root, state)
 
@@ -197,7 +207,8 @@ def perform_unsplit(force: bool = False) -> bool:
     """Convert a project from split-role mode back to canonical user/admin mode."""
     layout = _resolve_layout(Path.cwd())
     state = _read_state(layout.root)
-    split_roles = list(state.roles) if state and state.mode == "split" else _detect_split_roles(layout.root)
+    split_roles = _current_split_roles(layout.root, state)
+    extra_roles = list(state.extra_roles) if state else []
 
     if not split_roles:
         click.echo("ℹ️ No split roles detected. Nothing to unsplit.")
@@ -250,11 +261,12 @@ def perform_unsplit(force: bool = False) -> bool:
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
 
-    _write_role_runtime_files(layout.root, non_admin_roles=["user"])
-    create_token_file(["admin", "user"])
+    runtime_roles = ["user", *extra_roles]
+    _write_role_runtime_files(layout.root, non_admin_roles=runtime_roles)
+    create_token_file(["admin", *runtime_roles])
     update_main_routes()
 
-    rate_limits_csv = _build_role_rate_limits_csv(["user"])
+    rate_limits_csv = _build_role_rate_limits_csv(runtime_roles)
     _upsert_env_var(layout.root / ".env.example", "ROLE_RATE_LIMITS", rate_limits_csv)
 
     new_state = RoleSplitState(
@@ -266,6 +278,7 @@ def perform_unsplit(force: bool = False) -> bool:
         touched_files=tuple(sorted(set(files_to_touch + archived_files))),
         archived_at=timestamp,
         last_unsplit_at=_iso_now(),
+        extra_roles=tuple(extra_roles),
     )
     _write_state(layout.root, new_state)
 
@@ -281,6 +294,83 @@ def perform_unsplit(force: bool = False) -> bool:
     )
 
     click.echo("✅ Unsplit conversion completed. Project is now in user/admin mode.")
+    return True
+
+
+def current_account_roles(root: Path) -> list[str]:
+    """Every non-admin role the project has: user or its split roles, plus make-account roles."""
+    state = _read_state(root)
+    base_roles = list(state.roles) if state and state.mode == "split" else ["user"]
+    return [*base_roles, *(state.extra_roles if state else ())]
+
+
+def _current_split_roles(root: Path, state: RoleSplitState | None) -> list[str]:
+    if state and state.mode == "split":
+        return list(state.roles)
+    extra_roles = set(state.extra_roles) if state else set()
+    return [role for role in _detect_split_roles(root) if role not in extra_roles]
+
+
+def add_account_role(name: str) -> bool:
+    """Add a new account role next to the existing ones, with its own auth, tokens and permission checks."""
+    layout = _resolve_layout(Path.cwd())
+    role = name.strip().lower()
+    state = _read_state(layout.root)
+    base_roles = list(state.roles) if state and state.mode == "split" else ["user"]
+    extra_roles = list(state.extra_roles) if state else []
+
+    if not ROLE_PATTERN.match(role):
+        click.echo("❌ Account name must be lowercase snake_case and start with a letter, e.g. customer.")
+        return False
+    if role in RESERVED_ROLE_NAMES or role in base_roles or role in extra_roles:
+        click.echo(f"❌ '{role}' is reserved or already exists as a role.")
+        return False
+
+    sources = {
+        Path("schemas/user_schema.py"): layout.schemas_dir / f"{role}_schema.py",
+        Path("repositories/user_repo.py"): layout.repositories_dir / f"{role}_repo.py",
+        Path("services/user_service.py"): layout.services_dir / f"{role}_service.py",
+        Path("api/v1/user_route.py"): layout.routes_dir / f"{role}_route.py",
+    }
+    existing = [str(target.relative_to(layout.root)) for target in sources.values() if target.exists()]
+    if existing:
+        click.echo(f"❌ Target file(s) already exist: {', '.join(existing)}")
+        return False
+
+    timestamp = _timestamp_slug()
+    runtime_files = [
+        path for path in _collect_split_touch_files([]) if not path.startswith(("schemas/", "repositories/user", "services/user", "api/"))
+    ]
+    _archive_existing_files(layout.root, runtime_files, layout.root / ".fasterapi" / "archive" / timestamp)
+
+    for source, target in sources.items():
+        content = _apply_replacements((TEMPLATE_ROOT / source).read_text(encoding="utf-8"), role)
+        target.write_text(_rewrite_role_specific_content(content, role), encoding="utf-8")
+
+    all_roles = [*base_roles, *extra_roles, role]
+    _write_role_runtime_files(layout.root, non_admin_roles=all_roles)
+    create_token_file(["admin", *all_roles])
+    update_main_routes()
+    _upsert_env_var(layout.root / ".env.example", "ROLE_RATE_LIMITS", _build_role_rate_limits_csv(all_roles))
+
+    _write_state(
+        layout.root,
+        RoleSplitState(
+            version=1,
+            mode=state.mode if state else "unsplit",
+            roles=state.roles if state else tuple(),
+            previous_primary_role=state.previous_primary_role if state else "user",
+            created_at=state.created_at if state else _iso_now(),
+            touched_files=tuple(sorted(set((state.touched_files if state else ()) + tuple(runtime_files)))),
+            archived_at=timestamp,
+            last_unsplit_at=state.last_unsplit_at if state else None,
+            extra_roles=tuple([*extra_roles, role]),
+        ),
+    )
+    click.echo(
+        f"✅ Added the '{role}' account: /v1/{role}s signup, login, refresh, profile and account deletion, "
+        f"with its own tokens and permission checks (previous files archived in .fasterapi/archive/{timestamp})."
+    )
     return True
 
 
@@ -535,6 +625,11 @@ def _rewrite_main_rate_limits(main_file: Path, non_admin_roles: list[str]) -> No
 def _rewrite_role_specific_content(content: str, role: str) -> str:
     content = re.sub(r"\bverify_member_refresh_token\b", f"verify_{role}_refresh_token", content)
     content = re.sub(r"\bverify_user_refresh_token\b", f"verify_{role}_refresh_token", content)
+    content = re.sub(
+        r"\bcheck_user_account_status_and_permissions\b", f"check_{role}_account_status_and_permissions", content
+    )
+    # The generated account check looks up services.<role>_service.retrieve_<role>_by_<role>_id.
+    content = re.sub(r"\bretrieve_user_by_user_id\b", f"retrieve_{role}_by_{role}_id", content)
     content = re.sub(r'role="member"', f'role="{role}"', content)
     content = re.sub(r'role="user"', f'role="{role}"', content)
     return content
@@ -561,6 +656,7 @@ def _read_state(root: Path) -> RoleSplitState | None:
         touched_files=tuple(str(path) for path in payload.get("touched_files", [])),
         archived_at=payload.get("archived_at"),
         last_unsplit_at=payload.get("last_unsplit_at"),
+        extra_roles=tuple(str(role) for role in payload.get("extra_roles", [])),
     )
 
 
@@ -645,6 +741,10 @@ def _iso_now() -> str:
 
 def _timestamp_slug() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def _template_text(relative: str) -> str:
+    return (TEMPLATE_ROOT / relative).read_text(encoding="utf-8")
 
 
 def _render_auth_py(non_admin_roles: list[str]) -> str:
@@ -1005,282 +1105,12 @@ async def check_admin_account_status_and_permissions(
 
 
 def _render_auth_helpers_py() -> str:
-    return '''from __future__ import annotations
-
-from fastapi import HTTPException, status
-
-from repositories import tokens_repo as token_repo
-from schemas.tokens_schema import accessTokenCreate, refreshTokenCreate
-from security.encrypting_jwt import create_jwt_role_token
-
-
-LEGACY_ROLE_ALIASES = {"member": "user"}
-
-
-def _normalize_role(role: str) -> str:
-    return LEGACY_ROLE_ALIASES.get(role.strip().lower(), role.strip().lower())
-
-
-async def _issue_access_token(user_id: str, role: str):
-    role = _normalize_role(role)
-    role_function = f"add_{role}_access_token"
-    add_token = getattr(token_repo, role_function, None)
-
-    if add_token is None:
-        if role == "user":
-            add_token = getattr(token_repo, "add_access_tokens", None)
-        elif role == "admin":
-            add_token = getattr(token_repo, "add_admin_access_tokens", None)
-
-    if add_token is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={
-                "message": "Token repository role function not found",
-                "role": role,
-                "expected_function": role_function,
-            },
-        )
-
-    return await add_token(token_data=accessTokenCreate(userId=user_id))
-
-
-async def issue_tokens_for_role(user_id: str, role: str) -> tuple[str, str]:
-    normalized_role = _normalize_role(role)
-    access_token = await _issue_access_token(user_id=user_id, role=normalized_role)
-
-    jwt_token = await create_jwt_role_token(
-        token=access_token.accesstoken,
-        user_id=user_id,
-        role=normalized_role,
-    )
-
-    refresh_token = await token_repo.add_refresh_tokens(
-        token_data=refreshTokenCreate(
-            userId=user_id,
-            previousAccessToken=access_token.accesstoken,
-        )
-    )
-
-    return jwt_token, refresh_token.refreshtoken
-
-
-async def issue_tokens_for_user(user_id: str, role: str) -> tuple[str, str]:
-    return await issue_tokens_for_role(user_id=user_id, role=role)
-'''
+    return _template_text("services/auth_helpers.py")
 
 
 def _render_encrypting_jwt_py() -> str:
-    return '''import os
-from datetime import datetime, timedelta, timezone
-
-import jwt
-from bson import ObjectId
-from dotenv import load_dotenv
-from pydantic import BaseModel
-
-from core.database import db
-from core.settings import get_settings
-
-load_dotenv()
-SECRETID = os.getenv("SECRETID")
-
-# Token lifetime (in minutes)
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
-
-
-class JWTPayload(BaseModel):
-    access_token: str
-    user_id: str
-    user_type: str
-    is_activated: bool
-    exp: datetime
-    iat: datetime
-
-
-SECRET_KEY = get_settings().secret_key or "dev-only-insecure-secret"
-ALGORITHM = "HS256"
-
-
-async def get_secret_dict() -> dict:
-    result = await db.secret_keys.find_one({"_id": ObjectId(SECRETID)})
-    result.pop("_id")
-    return result
-
-
-async def get_secret_and_header():
-    import random
-
-    secrets = await get_secret_dict()
-
-    random_key = random.choice(list(secrets.keys()))
-    random_secret = secrets[random_key]
-    secret_keys = {random_key: random_secret}
-    headers = {"kid": random_key}
-    return {
-        "SECRET_KEY": secret_keys,
-        "HEADERS": headers,
-    }
-
-
-def create_jwt_token(
-    access_token: str,
-    user_id: str,
-    user_type: str,
-    is_activated: bool,
-    role: str = "user",
-) -> str:
-    payload = JWTPayload(
-        access_token=access_token,
-        user_id=user_id,
-        user_type=user_type,
-        is_activated=is_activated,
-        exp=datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
-        iat=datetime.now(timezone.utc),
-    ).model_dump()
-
-    payload["role"] = role
-
-    token = jwt.encode(
-        payload=payload,
-        key=SECRET_KEY,
-        algorithm=ALGORITHM,
-        headers={"typ": "JWT"},
-    )
-    return token
-
-
-async def create_jwt_role_token(token: str, user_id: str, role: str) -> str:
-    payload = {
-        "accessToken": token,
-        "role": role,
-        "userId": user_id,
-        "exp": datetime.now(timezone.utc) + timedelta(minutes=15),
-    }
-    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
-
-
-async def create_jwt_user_token(token: str, userId: str):
-    return await create_jwt_role_token(token=token, user_id=userId, role="user")
-
-
-async def create_jwt_member_token(token: str, userId: str):
-    return await create_jwt_user_token(token=token, userId=userId)
-
-
-async def create_jwt_admin_token(token: str, userId: str):
-    return await create_jwt_role_token(token=token, user_id=userId, role="admin")
-
-
-async def decode_jwt_token(token: str):
-    try:
-        decoded = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return decoded
-    except jwt.ExpiredSignatureError:
-        print("Expired token")
-        return None
-    except jwt.InvalidSignatureError:
-        print("Invalid signature")
-        return None
-    except jwt.DecodeError:
-        print("Malformed token")
-        return None
-    except Exception as exc:
-        print(f"Unexpected decode error: {exc}")
-        return None
-
-
-async def decode_jwt_token_without_expiration(token: str):
-    try:
-        decoded = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return decoded
-    except jwt.ExpiredSignatureError:
-        try:
-            decoded = jwt.decode(
-                token,
-                SECRET_KEY,
-                algorithms=[ALGORITHM],
-                options={"verify_exp": False},
-            )
-            return decoded
-        except Exception as inner_exc:
-            print(f"Failed to decode expired token: {inner_exc}")
-            return None
-    except jwt.DecodeError:
-        print("Malformed token")
-        return None
-    except Exception as exc:
-        print(f"Unexpected error decoding token: {exc}")
-        return None
-'''
+    return _template_text("security/encrypting_jwt.py")
 
 
 def _render_role_config_py() -> str:
-    return '''from __future__ import annotations
-
-from collections.abc import Sequence
-
-from limits import parse as parse_rate
-
-
-DEFAULT_ANONYMOUS_RATE = "20/minute"
-DEFAULT_ROLE_RATE = "80/minute"
-DEFAULT_ADMIN_RATE = "140/minute"
-
-LEGACY_ROLE_ALIASES = {"member": "user"}
-
-
-def normalize_role(role: str | None) -> str:
-    value = (role or "anonymous").strip().lower() or "anonymous"
-    return LEGACY_ROLE_ALIASES.get(value, value)
-
-
-def build_role_rate_limits_csv(non_admin_roles: Sequence[str], include_admin: bool = True) -> str:
-    entries = [f"anonymous:{DEFAULT_ANONYMOUS_RATE}"]
-    entries.extend(f"{normalize_role(role)}:{DEFAULT_ROLE_RATE}" for role in non_admin_roles)
-    if include_admin:
-        entries.append(f"admin:{DEFAULT_ADMIN_RATE}")
-    return ",".join(entries)
-
-
-def parse_role_rate_limits(raw: str | None) -> dict[str, str]:
-    parsed: dict[str, str] = {}
-    if not raw:
-        return parsed
-
-    for entry in raw.split(","):
-        value = entry.strip()
-        if not value or ":" not in value:
-            continue
-        role, limit = value.split(":", 1)
-        role_key = normalize_role(role)
-        limit_value = limit.strip()
-        if role_key and limit_value:
-            parsed[role_key] = limit_value
-
-    return parsed
-
-
-def build_role_rate_limits(raw: str | None, *, fallback_csv: str):
-    configured = parse_role_rate_limits(raw)
-    fallback = parse_role_rate_limits(fallback_csv)
-
-    selected = configured or fallback
-    if "anonymous" not in selected:
-        selected["anonymous"] = DEFAULT_ANONYMOUS_RATE
-    if "admin" not in selected:
-        selected["admin"] = DEFAULT_ADMIN_RATE
-
-    final_limits = {}
-    for role, rule in selected.items():
-        try:
-            final_limits[role] = parse_rate(rule)
-        except Exception:
-            # Skip invalid per-role rules and rely on anonymous fallback.
-            continue
-
-    if "anonymous" not in final_limits:
-        final_limits["anonymous"] = parse_rate(DEFAULT_ANONYMOUS_RATE)
-
-    return final_limits
-'''
+    return _template_text("core/role_config.py")

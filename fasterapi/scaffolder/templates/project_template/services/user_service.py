@@ -11,8 +11,10 @@ from repositories.user_repo import (
     delete_user,
 )
 from schemas.user_schema import UserCreate, UserUpdate, UserOut,UserBase,UserRefresh
+from schemas.imports import LoginType
 from security.hash import check_password
-from repositories.tokens_repo import get_refresh_tokens,delete_access_token,delete_refresh_token,delete_all_tokens_with_user_id
+from security.permissions import get_endpoint_permissions
+from repositories.tokens_repo import get_refresh_tokens,delete_access_token,delete_refresh_token,delete_all_tokens_with_user_id,delete_access_and_refresh_token_with_user_id
 from services.auth_helpers import issue_tokens_for_user
 from authlib.integrations.starlette_client import OAuth
 import os
@@ -20,6 +22,18 @@ from dotenv import load_dotenv
 
 
 load_dotenv()
+
+# What every new account may do on its own; admins grant anything beyond this.
+DEFAULT_USER_ENDPOINTS = {"get_my_users", "delete_user_account"}
+
+
+def _with_default_access(user_data: UserCreate) -> UserCreate:
+    # Signup bodies can carry permissionList and accountStatus, so both are reset rather than trusted.
+    from api.v1.user_route import router  # imported here because the route module imports this service
+
+    user_data.permissionList = get_endpoint_permissions(router, DEFAULT_USER_ENDPOINTS)
+    user_data.accountStatus = UserCreate.model_fields["accountStatus"].default
+    return user_data
 
  
 oauth = OAuth()
@@ -38,7 +52,7 @@ async def add_user(user_data: UserCreate) -> UserOut:
     """
     user =  await get_user(filter_dict={"email":user_data.email})
     if user==None:
-        new_user= await create_user(user_data)
+        new_user= await create_user(_with_default_access(user_data))
         access_token, refresh_token = await issue_tokens_for_user(user_id=new_user.id, role="user") # type: ignore
         new_user.password=""
         new_user.access_token= access_token
@@ -51,7 +65,10 @@ async def authenticate_user(user_data:UserBase )->UserOut:
     user = await get_user(filter_dict={"email":user_data.email})
 
     if user != None:
-        if check_password(password=user_data.password,hashed=user.password ): # type: ignore
+        if user.loginType != LoginType.email:
+            # Google accounts are stored with an empty password, so password login must never reach them.
+            raise HTTPException(status_code=401, detail="This account signs in with Google")
+        if user_data.password and check_password(password=user_data.password,hashed=user.password ): # type: ignore
             user.password=""
             access_token, refresh_token = await issue_tokens_for_user(user_id=user.id, role="user") # type: ignore
             user.access_token= access_token
@@ -75,10 +92,8 @@ async def refresh_user_tokens_reduce_number_of_logins(user_refresh_data:UserRefr
                     await delete_access_token(accessToken=expired_access_token)
                     await delete_refresh_token(refreshToken=user_refresh_data.refresh_token)
                     return user
-     
-        await delete_refresh_token(refreshToken=user_refresh_data.refresh_token)
-        await delete_access_token(accessToken=expired_access_token)
-  
+
+    # A mismatched refresh token may belong to someone else, so it is left untouched.
     raise HTTPException(status_code=404,detail="Invalid refresh token ")  
         
 async def remove_user(user_id: str):
@@ -139,7 +154,6 @@ async def update_user_by_id(user_id: str, user_data: UserUpdate, is_password_get
     Returns:
         _type_: UserOut
     """
-    from core.queue.manager import QueueManager
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid user ID format")
 
@@ -149,15 +163,18 @@ async def update_user_by_id(user_id: str, user_data: UserUpdate, is_password_get
     if not result:
         raise HTTPException(status_code=404, detail="User not found or update failed")
     if is_password_getting_changed is True:
-        QueueManager.get_instance().enqueue("delete_tokens", {"userId": user_id})
+        await delete_access_and_refresh_token_with_user_id(userId=user_id)
     return result
 
 async def authenticate_user_google(user_data: UserBase) -> UserOut:
     user = await get_user(filter_dict={"email": user_data.email})
 
     if user is None:
-        new_user = await create_user(UserCreate(**user_data.model_dump()))
+        new_user = await create_user(_with_default_access(UserCreate(**user_data.model_dump())))
         user = new_user
+    elif user.loginType != LoginType.google:
+        # Signing in with Google must not unlock an account that was registered with a password.
+        raise HTTPException(status_code=409, detail="An account with this email signs in with a password")
 
     access_token, refresh_token = await issue_tokens_for_user(user_id=user.id, role="user") # type: ignore
     user.password = ""

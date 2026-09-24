@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-import json
+import hmac
+from typing import Any
 
 import requests
 
@@ -13,7 +14,12 @@ from core.payments.types import (
     PaymentStatus,
     PaymentTransaction,
     WebhookEvent,
+    to_major_units,
+    to_minor_units,
 )
+from core.payments.webhook_body import parse_json_object
+
+_STATUSES = {"successful": PaymentStatus.SUCCEEDED, "failed": PaymentStatus.FAILED, "cancelled": PaymentStatus.FAILED}
 
 
 class FlutterwavePaymentProvider(PaymentProvider):
@@ -24,119 +30,101 @@ class FlutterwavePaymentProvider(PaymentProvider):
         self._webhook_secret_hash = webhook_secret_hash
         self._base_url = "https://api.flutterwave.com/v3"
 
-    def _headers(self) -> dict[str, str]:
-        return {
-            "Authorization": f"Bearer {self._secret_key}",
-            "Content-Type": "application/json",
-        }
+    def _call(self, method: str, path: str, failure: str, **kwargs: Any) -> dict[str, Any]:
+        try:
+            response = requests.request(
+                method,
+                f"{self._base_url}{path}",
+                headers={"Authorization": f"Bearer {self._secret_key}", "Content-Type": "application/json"},
+                timeout=15,
+                **kwargs,
+            )
+            data = response.json()
+        except (requests.RequestException, ValueError) as err:
+            raise AppException(status_code=502, code=ErrorCode.PAYMENT_PROVIDER_ERROR, message=failure, details=str(err)) from err
+        if response.status_code >= 400 or not isinstance(data, dict) or data.get("status") != "success":
+            raise AppException(status_code=502, code=ErrorCode.PAYMENT_PROVIDER_ERROR, message=failure, details=data)
+        return data
 
     def create_intent(self, payload: PaymentIntentRequest) -> PaymentIntentResponse:
-        response = requests.post(
-            f"{self._base_url}/payments",
+        data = self._call(
+            "POST",
+            "/payments",
+            "Flutterwave intent creation failed",
             json={
                 "tx_ref": payload.reference,
-                "amount": payload.amount_minor / 100,
+                "amount": to_major_units(payload.amount_minor, payload.currency),
                 "currency": payload.currency,
                 "redirect_url": payload.metadata.get("redirect_url") if payload.metadata else None,
                 "customer": {"email": payload.customer_email} if payload.customer_email else None,
                 "meta": payload.metadata or {},
             },
-            headers=self._headers(),
-            timeout=15,
         )
-        data = response.json()
-        if response.status_code >= 400 or data.get("status") != "success":
-            raise AppException(
-                status_code=502,
-                code=ErrorCode.PAYMENT_PROVIDER_ERROR,
-                message="Flutterwave intent creation failed",
-                details=data,
-            )
-
-        checkout_url = data.get("data", {}).get("link")
         return PaymentIntentResponse(
             provider=PaymentProviderName.FLUTTERWAVE,
             reference=payload.reference,
             status=PaymentStatus.PENDING,
-            checkout_url=checkout_url,
+            checkout_url=data.get("data", {}).get("link"),
             provider_payload=data,
         )
 
     def verify_webhook(self, *, body: bytes, headers: dict[str, str]) -> WebhookEvent:
-        provided = headers.get("verif-hash") or headers.get("Verif-Hash")
         expected = self._webhook_secret_hash
-        if expected and provided != expected:
+        provided = headers.get("verif-hash") or ""
+        if not expected or not hmac.compare_digest(provided.encode(), expected.encode()):
             raise AppException(
                 status_code=401,
                 code=ErrorCode.PAYMENT_WEBHOOK_INVALID,
-                message="Invalid Flutterwave webhook signature",
+                message="Invalid Flutterwave webhook signature"
+                if expected
+                else "FLW_WEBHOOK_SECRET_HASH is not configured, so webhooks can't be verified",
             )
 
-        payload = json.loads(body.decode("utf-8"))
-        event_id = str(payload.get("id") or payload.get("tx_ref") or "unknown")
-        event_type = str(payload.get("event") or payload.get("status") or "unknown")
+        payload = parse_json_object(body)
+        data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+        event_type = str(payload.get("event") or "")
+        if not data.get("id") or not event_type:
+            raise AppException(status_code=400, code=ErrorCode.PAYMENT_WEBHOOK_INVALID, message="Webhook missing event or transaction id")
         return WebhookEvent(
             provider=PaymentProviderName.FLUTTERWAVE,
-            event_id=event_id,
+            event_id=f"{event_type}:{data['id']}",
             event_type=event_type,
             payload=payload,
+            reference=data.get("tx_ref"),
         )
 
-    def fetch_transaction(self, *, reference: str) -> PaymentTransaction:
-        response = requests.get(
-            f"{self._base_url}/transactions/verify_by_reference",
-            params={"tx_ref": reference},
-            headers=self._headers(),
-            timeout=15,
+    def fetch_transaction(self, *, reference: str, provider_id: str | None = None) -> PaymentTransaction:
+        data = self._call(
+            "GET", "/transactions/verify_by_reference", "Flutterwave verify failed", params={"tx_ref": reference}
         )
-        data = response.json()
-        if response.status_code >= 400 or data.get("status") != "success":
-            raise AppException(
-                status_code=502,
-                code=ErrorCode.PAYMENT_PROVIDER_ERROR,
-                message="Flutterwave verify failed",
-                details=data,
-            )
-
-        status = str(data.get("data", {}).get("status", "")).lower()
-        mapped = PaymentStatus.SUCCEEDED if status == "successful" else PaymentStatus.PENDING
+        transaction = data.get("data") or {}
+        currency = str(transaction.get("currency") or "").upper()
+        amount = transaction.get("amount")
         return PaymentTransaction(
             provider=PaymentProviderName.FLUTTERWAVE,
             reference=reference,
-            status=mapped,
+            status=_STATUSES.get(str(transaction.get("status", "")).lower(), PaymentStatus.PENDING),
             raw=data,
+            amount_minor=to_minor_units(amount, currency) if amount is not None and currency else None,
+            currency=currency or None,
         )
 
-    def refund(self, *, reference: str, amount_minor: int | None = None) -> PaymentTransaction:
-        tx = self.fetch_transaction(reference=reference)
-        transaction_id = tx.raw.get("data", {}).get("id")
+    def refund(
+        self, *, reference: str, amount_minor: int, currency: str, provider_id: str | None = None
+    ) -> PaymentTransaction:
+        transaction_id = (self.fetch_transaction(reference=reference).raw.get("data") or {}).get("id")
         if not transaction_id:
             raise AppException(
                 status_code=404,
                 code=ErrorCode.PAYMENT_PROVIDER_ERROR,
                 message="Flutterwave transaction not found for refund",
-                details=tx.raw,
             )
-
-        payload = {}
-        if amount_minor is not None:
-            payload["amount"] = amount_minor / 100
-
-        response = requests.post(
-            f"{self._base_url}/transactions/{transaction_id}/refund",
-            json=payload,
-            headers=self._headers(),
-            timeout=15,
+        data = self._call(
+            "POST",
+            f"/transactions/{transaction_id}/refund",
+            "Flutterwave refund failed",
+            json={"amount": to_major_units(amount_minor, currency)},
         )
-        data = response.json()
-        if response.status_code >= 400 or data.get("status") != "success":
-            raise AppException(
-                status_code=502,
-                code=ErrorCode.PAYMENT_PROVIDER_ERROR,
-                message="Flutterwave refund failed",
-                details=data,
-            )
-
         return PaymentTransaction(
             provider=PaymentProviderName.FLUTTERWAVE,
             reference=reference,

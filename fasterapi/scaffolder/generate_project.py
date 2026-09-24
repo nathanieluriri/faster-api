@@ -3,6 +3,10 @@ from pathlib import Path
 from typing import List
 
 
+# Bytecode caches can appear in the template when it is imported during development or tests.
+_IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc")
+
+
 def _get_template_source() -> Path:
     return Path(__file__).parent / "templates" / "project_template"
 
@@ -23,7 +27,7 @@ def create_project(project_name: str) -> bool:
         print("❌ Project already exists.")
         return False
 
-    shutil.copytree(source, target)
+    shutil.copytree(source, target, ignore=_IGNORE)
     print(f"✅ Project created at {target}")
     return True
 
@@ -40,9 +44,11 @@ def create_project_in_current_directory() -> bool:
         return False
 
     for item in source.iterdir():
+        if item.name == "__pycache__":
+            continue
         destination = target / item.name
         if item.is_dir():
-            shutil.copytree(item, destination)
+            shutil.copytree(item, destination, ignore=_IGNORE)
         else:
             shutil.copy2(item, destination)
 

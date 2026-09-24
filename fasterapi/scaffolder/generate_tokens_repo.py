@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from textwrap import dedent
 
@@ -14,6 +15,8 @@ def _normalize_roles(roles: list[str]) -> list[str]:
         role = _sanitize_role(raw_role)
         if not role or role in normalized:
             continue
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", role):
+            raise ValueError(f"Invalid role name '{raw_role}': use lowercase letters, digits and underscores")
         normalized.append(role)
 
     if "admin" not in normalized:
@@ -145,14 +148,11 @@ async def _resolve_access_token_id(accessToken: str, allow_expired: bool) -> str
         if allow_expired
         else await decode_jwt_token(accessToken)
     )
+    # Only a signed JWT authenticates. The record id inside it is not a secret (ObjectIds are sequential),
+    # so it must never be accepted on its own.
     if decoded and decoded.get("accessToken"):
         return decoded["accessToken"]
-
-    try:
-        ObjectId(accessToken)
-        return accessToken
-    except errors.InvalidId:
-        return None
+    return None
 
 
 async def get_access_token(accessToken: str, allow_expired: bool = False) -> accessTokenOut | None:
@@ -210,6 +210,8 @@ async def get_access_token_allow_expired(accessToken: str) -> accessTokenOut | N
 
 
 async def get_refresh_tokens(refreshToken: str) -> refreshTokenOut | None:
+    if not ObjectId.is_valid(refreshToken):
+        return None
     token = await db.refreshToken.find_one({{"_id": ObjectId(refreshToken)}})
     if token:
         return refreshTokenOut(**token)

@@ -34,6 +34,8 @@ class UserUpdate(BaseModel):
 class UserOut(UserBase):
     # Add other fields here 
     id: Optional[str] = Field(default=None, alias="_id")
+    # Still readable for password checks, but never serialized into responses.
+    password: Optional[str | bytes] = Field(default=None, exclude=True)
     date_created: Optional[int] = None
     last_updated: Optional[int] = None
     refresh_token: Optional[str] =None

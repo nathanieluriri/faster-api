@@ -1,11 +1,14 @@
+from importlib import import_module
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 
+from core.errors import AppException, ErrorCode, resource_not_found
 from core.response_envelope import document_response
-from schemas.admin_schema import AdminBase, AdminCreate, AdminLogin, AdminOut, AdminRefresh
+from schemas.admin_schema import AccountAccessUpdate, AdminBase, AdminCreate, AdminLogin, AdminOut, AdminRefresh
 from security.account_status_check import check_admin_account_status_and_permissions
-from security.auth import verify_admin_refresh_token
+from security.auth import NON_ADMIN_ROLES, verify_admin_refresh_token
+from security.permissions import get_router_permissions, ungranted_permissions
 from security.principal import AuthPrincipal
 from services.admin_service import (
     add_admin,
@@ -13,6 +16,8 @@ from services.admin_service import (
     refresh_admin_tokens_reduce_number_of_logins,
     remove_admin,
     retrieve_admins,
+    retrieve_role_accounts,
+    update_role_account_access,
 )
 
 router = APIRouter(prefix="/admins", tags=["Admins"])
@@ -54,6 +59,16 @@ async def signup_new_admin(
     admin_data: AdminBase,
     admin: AdminOut = Depends(check_admin_account_status_and_permissions),
 ):
+    if len(admin_data.password) < 8:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Password must be at least 8 characters")
+    beyond_inviter = ungranted_permissions(admin_data.permissionList, admin.permissionList)
+    if beyond_inviter:
+        raise AppException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code=ErrorCode.AUTH_PERMISSION_DENIED,
+            message="You can't grant permissions you don't have",
+            details={"permissions": beyond_inviter},
+        )
     admin_data_dict = admin_data.model_dump()
     new_admin = AdminCreate(invited_by=admin.id, **admin_data_dict) # type: ignore
     items = await add_admin(admin_data=new_admin)
@@ -117,3 +132,51 @@ async def refresh_admin_tokens(
 async def delete_admin_account(admin: AdminOut = Depends(check_admin_account_status_and_permissions)):
     result = await remove_admin(admin_id=admin.id) # type: ignore
     return result
+
+
+def _account_router(role: str):
+    if role not in NON_ADMIN_ROLES:
+        raise resource_not_found("role", role)
+    return import_module(f"api.v1.{role}_route").router
+
+
+@router.get(
+    "/accounts/{role}",
+    dependencies=[Depends(check_admin_account_status_and_permissions)],
+)
+@document_response(message="Accounts fetched successfully", success_example=[])
+async def list_accounts(
+    role: str,
+    start: Annotated[int, Query(ge=0, description="The starting index (offset).")] = 0,
+    stop: Annotated[int, Query(gt=0, description="The ending index (limit).")] = 50,
+):
+    _account_router(role)
+    if stop <= start:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="'stop' must be greater than 'start'")
+    return await retrieve_role_accounts(role, start=start, stop=stop)
+
+
+@router.get(
+    "/accounts/{role}/permissions",
+    dependencies=[Depends(check_admin_account_status_and_permissions)],
+)
+@document_response(message="Grantable permissions fetched successfully")
+async def list_account_permissions(role: str):
+    return get_router_permissions(_account_router(role))
+
+
+@router.patch(
+    "/accounts/{role}/{account_id}",
+    dependencies=[Depends(check_admin_account_status_and_permissions)],
+)
+@document_response(message="Account access updated successfully")
+async def update_account_access(role: str, account_id: str, access: AccountAccessUpdate):
+    unknown = ungranted_permissions(access.permissionList, get_router_permissions(_account_router(role)))
+    if unknown:
+        raise AppException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            code=ErrorCode.VALIDATION_FAILED,
+            message=f"These permissions don't match any {role} route",
+            details={"permissions": unknown},
+        )
+    return await update_role_account_access(role, account_id, access)

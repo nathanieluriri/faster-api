@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+from typing import Any
 
 from core.errors import AppException, ErrorCode
 from core.payments.provider import PaymentProvider
@@ -12,6 +12,17 @@ from core.payments.types import (
     PaymentTransaction,
     WebhookEvent,
 )
+
+_STATUSES = {"succeeded": PaymentStatus.SUCCEEDED, "canceled": PaymentStatus.FAILED}
+
+
+def _plain(obj: Any) -> dict[str, Any]:
+    # Stripe objects stopped being dict subclasses; to_dict() converts nested objects too.
+    for method in ("to_dict", "to_dict_recursive"):
+        convert = getattr(obj, method, None)
+        if callable(convert):
+            return convert()
+    return dict(obj)
 
 
 class StripePaymentProvider(PaymentProvider):
@@ -27,22 +38,21 @@ class StripePaymentProvider(PaymentProvider):
         self._stripe.api_key = secret_key
         self._webhook_secret = webhook_secret
 
+    def _fail(self, message: str, err: Exception) -> AppException:
+        return AppException(status_code=502, code=ErrorCode.PAYMENT_PROVIDER_ERROR, message=message, details=str(err))
+
     def create_intent(self, payload: PaymentIntentRequest) -> PaymentIntentResponse:
         try:
             intent = self._stripe.PaymentIntent.create(
                 amount=payload.amount_minor,
                 currency=payload.currency.lower(),
-                metadata={"reference": payload.reference, **(payload.metadata or {})},
+                # The reference goes last so client metadata can't replace it.
+                metadata={**(payload.metadata or {}), "reference": payload.reference},
                 receipt_email=payload.customer_email,
                 automatic_payment_methods={"enabled": True},
             )
         except Exception as err:
-            raise AppException(
-                status_code=502,
-                code=ErrorCode.PAYMENT_PROVIDER_ERROR,
-                message="Stripe intent creation failed",
-                details=str(err),
-            ) from err
+            raise self._fail("Stripe intent creation failed", err) from err
 
         return PaymentIntentResponse(
             provider=PaymentProviderName.STRIPE,
@@ -53,7 +63,7 @@ class StripePaymentProvider(PaymentProvider):
         )
 
     def verify_webhook(self, *, body: bytes, headers: dict[str, str]) -> WebhookEvent:
-        signature = headers.get("stripe-signature") or headers.get("Stripe-Signature")
+        signature = headers.get("stripe-signature")
         if not signature or not self._webhook_secret:
             raise AppException(
                 status_code=401,
@@ -62,11 +72,9 @@ class StripePaymentProvider(PaymentProvider):
             )
 
         try:
-            event = self._stripe.Webhook.construct_event(
-                payload=body,
-                sig_header=signature,
-                secret=self._webhook_secret,
-            )
+            event = self._stripe.Webhook.construct_event(payload=body, sig_header=signature, secret=self._webhook_secret)
+        except ValueError as err:
+            raise AppException(status_code=400, code=ErrorCode.PAYMENT_WEBHOOK_INVALID, message="Invalid Stripe webhook body") from err
         except Exception as err:
             raise AppException(
                 status_code=401,
@@ -75,16 +83,27 @@ class StripePaymentProvider(PaymentProvider):
                 details=str(err),
             ) from err
 
+        payload = _plain(event)
+        obj = (payload.get("data") or {}).get("object") or {}
         return WebhookEvent(
             provider=PaymentProviderName.STRIPE,
-            event_id=event["id"],
-            event_type=event["type"],
-            payload=json.loads(json.dumps(event, default=str)),
+            event_id=payload["id"],
+            event_type=payload["type"],
+            payload=payload,
+            reference=(obj.get("metadata") or {}).get("reference"),
         )
 
-    def fetch_transaction(self, *, reference: str) -> PaymentTransaction:
-        intents = self._stripe.PaymentIntent.search(query=f"metadata['reference']:'{reference}'", limit=1)
-        if not intents.data:
+    def fetch_transaction(self, *, reference: str, provider_id: str | None = None) -> PaymentTransaction:
+        try:
+            if provider_id:
+                intent = self._stripe.PaymentIntent.retrieve(provider_id)
+            else:
+                # References are limited to letters, digits, "-" and "_", so they can't break out of the query.
+                found = self._stripe.PaymentIntent.search(query=f"metadata['reference']:'{reference}'", limit=1)
+                intent = found.data[0] if found.data else None
+        except Exception as err:
+            raise self._fail("Stripe lookup failed", err) from err
+        if intent is None:
             raise AppException(
                 status_code=404,
                 code=ErrorCode.RESOURCE_NOT_FOUND,
@@ -92,34 +111,27 @@ class StripePaymentProvider(PaymentProvider):
                 details={"reference": reference},
             )
 
-        intent = intents.data[0]
-        status = PaymentStatus.SUCCEEDED if intent.status == "succeeded" else PaymentStatus.PENDING
+        raw = _plain(intent)
         return PaymentTransaction(
             provider=PaymentProviderName.STRIPE,
             reference=reference,
-            status=status,
-            raw=json.loads(json.dumps(intent, default=str)),
+            status=_STATUSES.get(raw.get("status"), PaymentStatus.PENDING),
+            raw=raw,
+            amount_minor=raw.get("amount_received") or raw.get("amount"),
+            currency=str(raw.get("currency") or "").upper() or None,
         )
 
-    def refund(self, *, reference: str, amount_minor: int | None = None) -> PaymentTransaction:
-        tx = self.fetch_transaction(reference=reference)
-        payment_intent_id = tx.raw.get("id")
-        if not payment_intent_id:
-            raise AppException(
-                status_code=404,
-                code=ErrorCode.RESOURCE_NOT_FOUND,
-                message="Stripe payment intent not found for refund",
-                details={"reference": reference},
-            )
-
-        refund_payload = {"payment_intent": payment_intent_id}
-        if amount_minor is not None:
-            refund_payload["amount"] = amount_minor
-
-        refund = self._stripe.Refund.create(**refund_payload)
+    def refund(
+        self, *, reference: str, amount_minor: int, currency: str, provider_id: str | None = None
+    ) -> PaymentTransaction:
+        intent_id = provider_id or self.fetch_transaction(reference=reference).raw.get("id")
+        try:
+            refund = self._stripe.Refund.create(payment_intent=intent_id, amount=amount_minor)
+        except Exception as err:
+            raise self._fail("Stripe refund failed", err) from err
         return PaymentTransaction(
             provider=PaymentProviderName.STRIPE,
             reference=reference,
             status=PaymentStatus.REFUNDED,
-            raw=json.loads(json.dumps(refund, default=str)),
+            raw=_plain(refund),
         )

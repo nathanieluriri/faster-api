@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+.git
+.venv
+venv
+env
+__pycache__
+*.pyc
+.pytest_cache
+tests
+uploads
+.vercel
+*.log

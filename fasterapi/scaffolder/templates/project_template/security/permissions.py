@@ -11,20 +11,35 @@ def make_permission_key(*, method: str, path: str) -> str:
     return f"{method.upper()}:{normalized_path}"
 
 
-def _route_permissions(router: APIRouter, *, methods: set[str] | None = None) -> PermissionList:
+def _mount_prefix(route: APIRoute) -> str:
+    # `fasterapi mount` includes routers from api/<version>/ under /<version>, and requests are checked
+    # against that full path, so keys built from the router alone would never match.
+    parts = route.endpoint.__module__.split(".")
+    return f"/{parts[1]}" if len(parts) >= 3 and parts[0] == "api" else ""
+
+
+def _route_permissions(
+    router: APIRouter,
+    *,
+    methods: set[str] | None = None,
+    endpoints: set[str] | None = None,
+) -> PermissionList:
     permissions: list[Permission] = []
     seen_keys: set[str] = set()
 
     for route in router.routes:
         if not isinstance(route, APIRoute):
             continue
+        if endpoints is not None and route.endpoint.__name__ not in endpoints:
+            continue
 
+        path = _mount_prefix(route) + route.path
         route_methods = sorted((route.methods or set()) - {"HEAD", "OPTIONS"})
         for method in route_methods:
             if methods and method not in methods:
                 continue
 
-            key = make_permission_key(method=method, path=route.path)
+            key = make_permission_key(method=method, path=path)
             if key in seen_keys:
                 raise ValueError(f"Duplicate permission key detected: {key}")
             seen_keys.add(key)
@@ -33,7 +48,7 @@ def _route_permissions(router: APIRouter, *, methods: set[str] | None = None) ->
                 Permission(
                     name=route.endpoint.__name__,
                     methods=[method],
-                    path=route.path,
+                    path=path,
                     key=key,
                     description=route.description,
                 )
@@ -48,6 +63,25 @@ def get_router_permissions(router: APIRouter) -> PermissionList:
 
 def get_router_get_permissions(router: APIRouter) -> PermissionList:
     return _route_permissions(router, methods={"GET"})
+
+
+def get_endpoint_permissions(router: APIRouter, endpoints: set[str]) -> PermissionList:
+    return _route_permissions(router, endpoints=endpoints)
+
+
+def _effective_grants(permission_list: PermissionList | None) -> set[str]:
+    # Mirrors the access check: a permission matches by key, or by endpoint name plus an uppercase method.
+    grants: set[str] = set()
+    for permission in permission_list.permissions if permission_list else []:
+        if permission.key:
+            grants.add(permission.key)
+        grants.update(f"{method} {permission.name}" for method in permission.methods if method == method.upper())
+    return grants
+
+
+def ungranted_permissions(requested: PermissionList | None, held: PermissionList | None) -> list[str]:
+    """What `requested` would allow that `held` does not."""
+    return sorted(_effective_grants(requested) - _effective_grants(held))
 
 
 def default_get_permissions() -> PermissionList:

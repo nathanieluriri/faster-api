@@ -10,9 +10,30 @@ from security.hash import hash_password
 
 
 load_dotenv()
+SUPER_ADMIN_ID = "656f7ac12b9d4f6c9e2b9f7d"
 SUPER_ADMIN_EMAIL=os.getenv("SUPER_ADMIN_EMAIL") 
 SUPER_ADMIN_PASSWORD=os.getenv("SUPER_ADMIN_PASSWORD")
-SUPER_ADMIN_HASHED_PASSWORD=hash_password(SUPER_ADMIN_PASSWORD)
+# The built-in super admin only exists when both values are set.
+SUPER_ADMIN_ENABLED = bool(SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD)
+SUPER_ADMIN_HASHED_PASSWORD = hash_password(SUPER_ADMIN_PASSWORD) if SUPER_ADMIN_ENABLED else None
+
+
+def _super_admin() -> AdminOut:
+    from security.permissions import default_permissions  # imported here to avoid a circular import
+
+    return AdminOut(
+        _id=SUPER_ADMIN_ID,
+        full_name="Super Admin",
+        email=SUPER_ADMIN_EMAIL,
+        password=SUPER_ADMIN_HASHED_PASSWORD,
+        permissionList=default_permissions(),
+    )
+
+
+def _is_super_admin_lookup(filter_dict: dict) -> bool:
+    if not SUPER_ADMIN_ENABLED:
+        return False
+    return filter_dict.get("email") == SUPER_ADMIN_EMAIL or str(filter_dict.get("_id")) == SUPER_ADMIN_ID
 
 
 async def create_admin(admin_data: AdminCreate) -> AdminOut:
@@ -29,16 +50,7 @@ async def get_admin(filter_dict: dict) -> Optional[AdminOut]:
         result = await db.admins.find_one(filter_dict)
 
         if result is None:
-            try:
-                filter_email = filter_dict.get("email",None)
-                filter_id = filter_dict.get("_id",None)
-                print(filter_id)
-                if filter_email==SUPER_ADMIN_EMAIL or str(filter_id)=="656f7ac12b9d4f6c9e2b9f7d" :
-                    return AdminOut(full_name="Super Admin",email=SUPER_ADMIN_EMAIL,password=SUPER_ADMIN_HASHED_PASSWORD,_id="656f7ac12b9d4f6c9e2b9f7d")
-            except Exception as e:
-                print(e)
-                return None 
-            return None
+            return _super_admin() if _is_super_admin_lookup(filter_dict) else None
 
         return AdminOut(**result)
 
@@ -63,8 +75,8 @@ async def get_admins(filter_dict: dict = {},start=0,stop=100) -> List[AdminOut]:
             adminObj =AdminOut(**doc)
             adminObj.password=None
             admin_list.append(adminObj)
-        super_admin= AdminOut(_id="656f7ac12b9d4f6c9e2b9f7d",full_name="Super Admin",email=SUPER_ADMIN_EMAIL,password=SUPER_ADMIN_HASHED_PASSWORD)
-        admin_list.append(super_admin)
+        if SUPER_ADMIN_ENABLED:
+            admin_list.append(_super_admin())
         return admin_list
 
     except Exception as e:

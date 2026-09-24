@@ -47,7 +47,8 @@ def build_role_rate_limits(raw: str | None, *, fallback_csv: str):
     configured = parse_role_rate_limits(raw)
     fallback = parse_role_rate_limits(fallback_csv)
 
-    selected = configured or fallback
+    # Roles missing from ROLE_RATE_LIMITS (e.g. added later with make-account) keep their default limit.
+    selected = {**fallback, **configured}
     if "anonymous" not in selected:
         selected["anonymous"] = DEFAULT_ANONYMOUS_RATE
     if "admin" not in selected:

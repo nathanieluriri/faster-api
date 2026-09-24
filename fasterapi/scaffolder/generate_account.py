@@ -1,4 +1,3 @@
-from pathlib import Path
 import re
 
 
@@ -32,34 +31,8 @@ def _apply_replacements(content: str, name: str) -> str:
     return content
 
 
-def create_account_files(name: str):
-    db_name = name.lower()
-    class_name = "".join(part.capitalize() for part in db_name.split("_"))
+def create_account_files(name: str) -> bool:
+    # Imported here because split_user_roles imports _apply_replacements from this module.
+    from fasterapi.scaffolder.split_user_roles import add_account_role
 
-    template_root = Path(__file__).parent / "templates" / "project_template"
-    targets = {
-        template_root / "schemas" / "user_schema.py": Path.cwd() / "schemas" / f"{db_name}_schema.py",
-        template_root / "repositories" / "user_repo.py": Path.cwd() / "repositories" / f"{db_name}_repo.py",
-        template_root / "services" / "user_service.py": Path.cwd() / "services" / f"{db_name}_service.py",
-        template_root / "api" / "v1" / "user_route.py": Path.cwd() / "api" / "v1" / f"{db_name}_route.py",
-    }
-
-    for source_path, target_path in targets.items():
-        if not source_path.exists():
-            print(f"❌ Missing template file: {source_path}")
-            return
-        if target_path.exists():
-            print(f"❌ Target file already exists: {target_path}")
-            return
-
-    for source_path, target_path in targets.items():
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        content = source_path.read_text(encoding="utf-8")
-        content = _apply_replacements(content, db_name)
-        target_path.write_text(content, encoding="utf-8")
-
-    print(
-        f"✅ {class_name} account scaffolding created: "
-        f"schemas/{db_name}_schema.py, repositories/{db_name}_repo.py, "
-        f"services/{db_name}_service.py, api/v1/{db_name}_route.py"
-    )
+    return add_account_role(name)
