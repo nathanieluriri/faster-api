@@ -14,11 +14,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from limits.storage import RedisStorage
 from limits.strategies import FixedWindowRateLimiter
-from pymongo import MongoClient
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from celery_worker import celery_app
+from core.database import DB_TYPE, ping_database
 from core.email.manager import EmailManager
 from core.payments.manager import PaymentManager
 from core.queue.celery_provider import CeleryQueueProvider
@@ -37,8 +37,6 @@ from repositories.tokens_repo import get_access_token_allow_expired
 
 settings = get_settings()
 
-MONGO_URI = os.getenv("MONGO_URL")
-mongo_client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=2000) if MONGO_URI else None
 redis_client = redis.Redis.from_url(settings.redis_url, socket_connect_timeout=2, decode_responses=True)
 
 
@@ -134,14 +132,15 @@ def apscheduler_heartbeat() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    scheduler.add_job(
-        apscheduler_heartbeat,
-        trigger=IntervalTrigger(seconds=15),
-        id="apscheduler_heartbeat",
-        name="APScheduler Heartbeat",
-        replace_existing=True,
-    )
-    scheduler.start()
+    if settings.scheduler_enabled:
+        scheduler.add_job(
+            apscheduler_heartbeat,
+            trigger=IntervalTrigger(seconds=15),
+            id="apscheduler_heartbeat",
+            name="APScheduler Heartbeat",
+            replace_existing=True,
+        )
+        scheduler.start()
 
     QueueManager.configure(CeleryQueueProvider(celery_app=celery_app))
     EmailManager.configure_from_settings()
@@ -155,7 +154,8 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        scheduler.shutdown()
+        if scheduler.running:
+            scheduler.shutdown()
 
 
 app = FastAPI(lifespan=lifespan, title="REST API")
@@ -210,28 +210,27 @@ def read_root(request: Request):
 @app.get("/health", tags=["Health"])
 @document_response(
     message="Health check completed",
-    success_example={"status": "healthy", "services": {"mongo": "healthy", "redis": "healthy"}},
+    success_example={"status": "healthy", "services": {"database": "healthy", "redis": "healthy"}},
 )
 async def health_check():
     services: dict[str, dict[str, str | float]] = {}
     overall_status = "healthy"
 
-    if mongo_client is not None:
-        start = time.perf_counter()
-        try:
-            mongo_client.admin.command("ping")
-            services["mongo"] = {
-                "status": "healthy",
-                "latency_ms": round((time.perf_counter() - start) * 1000, 2),
-                "message": "MongoDB ping successful",
-            }
-        except Exception as exc:
-            overall_status = "degraded"
-            services["mongo"] = {
-                "status": "unhealthy",
-                "latency_ms": round((time.perf_counter() - start) * 1000, 2),
-                "message": str(exc),
-            }
+    start = time.perf_counter()
+    try:
+        await ping_database()
+        services["database"] = {
+            "status": "healthy",
+            "latency_ms": round((time.perf_counter() - start) * 1000, 2),
+            "message": f"{DB_TYPE} ping successful",
+        }
+    except Exception as exc:
+        overall_status = "degraded"
+        services["database"] = {
+            "status": "unhealthy",
+            "latency_ms": round((time.perf_counter() - start) * 1000, 2),
+            "message": str(exc),
+        }
 
     start = time.perf_counter()
     try:
@@ -249,8 +248,13 @@ async def health_check():
             "message": str(exc),
         }
 
-    aps_heartbeat = redis_client.get("apscheduler:heartbeat")
-    if aps_heartbeat:
+    try:
+        aps_heartbeat = redis_client.get("apscheduler:heartbeat") if settings.scheduler_enabled else None
+    except Exception:
+        aps_heartbeat = None
+    if not settings.scheduler_enabled:
+        services["apscheduler"] = {"status": "disabled", "latency_ms": 0, "message": "ENABLE_SCHEDULER is off"}
+    elif aps_heartbeat:
         age = time.time() - float(aps_heartbeat)
         services["apscheduler"] = {
             "status": "healthy" if age <= 30 else "degraded",

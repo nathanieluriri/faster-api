@@ -170,7 +170,7 @@ async def list_{db_name}s(
     stop: Optional[int] = Query(None, description="Stop index for range-based pagination"),
     page_number: Optional[int] = Query(None, description="Page number for page-based pagination (0-indexed)"),
     # New: Filter parameter expects a JSON string
-    filters: Optional[str] = Query(None, description="Optional JSON string of MongoDB filter criteria (e.g., '{{\\"field\\": \\"value\\"}}')")
+    filters: Optional[str] = Query(None, description="Optional JSON object of exact-match field filters (e.g., '{{\\"field\\": \\"value\\"}}')")
 ):
     \"""
     Retrieves a list of {class_name}s with pagination and optional filtering.
@@ -189,6 +189,15 @@ async def list_{db_name}s(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid JSON format for 'filters' query parameter."
+            )
+        # Only exact matches on plain values: operators like $ne or $where would let callers bypass filtering.
+        if not isinstance(parsed_filters, dict) or any(
+            str(key).startswith("$") or isinstance(value, (dict, list))
+            for key, value in parsed_filters.items()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="'filters' must be a JSON object of field names to plain values."
             )
 
     # 2. Determine Pagination
@@ -267,8 +276,8 @@ async def create_{db_name}(payload: {class_name}Base):
 @router.patch("/{{id}}")
 @document_response(message="{class_name} updated successfully")
 async def update_{db_name}(
-    id: str = Path(..., description="ID of the {{db_name}} to update"),
-    payload: {class_name}Update = None
+    payload: {class_name}Update,
+    id: str = Path(..., description="ID of the {db_name} to update"),
 ):
     \"""
     Updates an existing {class_name} by its ID.

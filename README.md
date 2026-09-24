@@ -89,8 +89,13 @@ fasterapi run-d
 
 | Command | Purpose |
 | --- | --- |
-| `new <name>` | Create a new project in a new folder |
-| `new-here` | Scaffold a new project in the current folder |
+| `new <name> [--db ...] [--deploy ...]` | Create a new project in a new folder |
+| `new-here [--db ...] [--deploy ...]` | Scaffold a new project in the current folder |
+| `db use <mongodb\|postgres\|supabase>` | Switch an existing project's database |
+| `deploy check --target <vercel\|cloudrun>` | List features and settings that won't work on the platform |
+| `deploy init <vercel\|cloudrun>` | Add `vercel.json`, or a Cloud Run ready Dockerfile and ignore files |
+| `deploy vercel [--prod] [--push-env]` | Check, then deploy with the Vercel CLI |
+| `deploy cloudrun --service <name>` | Check, then deploy to Cloud Run from source |
 | `make-schema <name>` | Generate a Pydantic schema |
 | `make-crud <name>` | Generate CRUD repository functions |
 | `make-service <name>` | Generate service layer template |
@@ -99,7 +104,6 @@ fasterapi run-d
 | `make-token-repo [roles...]` | Generate token repository for roles |
 | `split-user [--force]` | Interactively split `user` into custom non-admin roles |
 | `unsplit-user [--force]` | Collapse split custom roles back into canonical `user` |
-| `make-token-deps` | Generate token dependency utilities |
 | `mount` | Mount routes into `main.py` |
 | `email add-template` | Interactively add a built-in email template example |
 | `email mount` | Mount templates from `email_templates/` into the email singleton |
@@ -112,6 +116,53 @@ fasterapi run-d
 - `fasterapi new <name>` creates a new directory (`./<name>`) and scaffolds the project inside it.
 - `fasterapi new-here` scaffolds directly into your current directory (`./`) without creating a new folder.
 - `new-here` is safety-checked and will stop if template paths already exist in the current directory.
+
+## Databases
+
+Projects use MongoDB by default. Postgres, Supabase and Neon are supported through a built-in
+Postgres backend that speaks the same API as the MongoDB driver, so the built-in auth, tokens,
+payments and every generated repository work unchanged.
+
+```bash
+fasterapi new shop --db supabase     # or --db postgres
+fasterapi db use postgres            # switch an existing project
+```
+
+Then set `DATABASE_URL` in `.env`. Each collection becomes a table with a JSONB column, created
+on first use. Tables get row level security enabled, so Supabase's public REST API can't read them.
+
+- Supported queries: equality, dotted paths, `$and`, `$or`, `$eq`, `$ne`, `$gt`, `$gte`, `$lt`,
+  `$lte`, `$in`, `$nin`, `$exists`, plus `sort`, `skip`, `limit` and projections.
+- Supported updates: `$set`, `$unset`, `$inc`.
+- Anything else (for example `$regex` or `aggregate`) raises a clear `NotImplementedError`.
+- On Vercel or other serverless hosts, use Supabase's transaction pooler URL (port 6543).
+
+## Deploying
+
+```bash
+fasterapi new shop --db supabase --deploy vercel     # or --deploy cloudrun
+fasterapi deploy check --target vercel               # exits 1 on blocking problems, CI friendly
+fasterapi deploy vercel --prod --push-env
+fasterapi deploy cloudrun --service shop-api --region us-central1
+```
+
+`deploy check` reads `.env` (or `--env-file`) and scans your code. It reports, with file and
+line where relevant:
+
+| Feature | Vercel | Cloud Run |
+| --- | --- | --- |
+| Local database or Redis host, empty secrets | error | error |
+| `STORAGE_BACKEND=local` uploads | error (read-only disk) | warning (disk wiped on scale down) |
+| APScheduler jobs | error (no long-running process) | warning (CPU throttled, scales to zero) |
+| Celery queue and `EMAIL_QUEUE_ENABLED=true` | error (no workers) | warning (needs a worker service) |
+| WebSocket endpoints | error | supported |
+| `BackgroundTasks` | warning | warning |
+| Supabase direct connection (port 5432) | warning | fine |
+
+Cloud Run deploys default to scale to zero (`--min-instances 0`) and cap at `--max-instances 3`,
+so idle time costs nothing and traffic spikes can't run up the bill. `deploy init` and
+`--deploy` also turn off the scheduler and email queue in your env files, since neither works
+without a long-running worker.
 
 ### Route Versioning Modes
 
@@ -169,7 +220,7 @@ fasterapi run-d
 ## Roadmap
 
 - Improve `new` and `new-here` bootstrap customization
-- SQLAlchemy repository generators (PostgreSQL/MySQL)
+- MySQL support
 - Config-driven scaffolding via `fasterapi.yaml`
 - CI/CD template generation
 - Better Docker/Docker Compose scaffolding
@@ -180,8 +231,10 @@ fasterapi run-d
 ```bash
 git clone https://github.com/nathanieluriri/faster-api.git
 cd faster-api
-pip install -e .
+pip install -e . pytest
 pytest
+# Postgres backend tests run when a database is available:
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/test pytest
 ```
 
 Issues and pull requests are welcome.

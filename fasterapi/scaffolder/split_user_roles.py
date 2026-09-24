@@ -535,6 +535,9 @@ def _rewrite_main_rate_limits(main_file: Path, non_admin_roles: list[str]) -> No
 def _rewrite_role_specific_content(content: str, role: str) -> str:
     content = re.sub(r"\bverify_member_refresh_token\b", f"verify_{role}_refresh_token", content)
     content = re.sub(r"\bverify_user_refresh_token\b", f"verify_{role}_refresh_token", content)
+    content = re.sub(
+        r"\bcheck_user_account_status_and_permissions\b", f"check_{role}_account_status_and_permissions", content
+    )
     content = re.sub(r'role="member"', f'role="{role}"', content)
     content = re.sub(r'role="user"', f'role="{role}"', content)
     return content

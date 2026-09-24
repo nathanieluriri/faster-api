@@ -1,6 +1,5 @@
 from pathlib import Path
 from datetime import datetime
-from datetime import datetime
 def create_schema_file(name: str):
     db_name=name.lower()
     schema_dir = Path.cwd() / "schemas"
@@ -9,7 +8,7 @@ def create_schema_file(name: str):
 
     if schema_path.exists():
         print(f"⚠️  Schema already exists: schemas/{db_name}.py")
-        return
+        return False
 
     # Convert snake_case to PascalCase
     class_name = "".join(part.capitalize() for part in db_name.split("_"))
@@ -79,3 +78,4 @@ class {class_name}Out({class_name}Base):
         f.write(schema_code)
 
     print(f"✅ Schema file created: schemas/{db_name}.py")
+    return True

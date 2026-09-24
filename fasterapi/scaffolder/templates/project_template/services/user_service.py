@@ -12,7 +12,7 @@ from repositories.user_repo import (
 )
 from schemas.user_schema import UserCreate, UserUpdate, UserOut,UserBase,UserRefresh
 from security.hash import check_password
-from repositories.tokens_repo import get_refresh_tokens,delete_access_token,delete_refresh_token,delete_all_tokens_with_user_id
+from repositories.tokens_repo import get_refresh_tokens,delete_access_token,delete_refresh_token,delete_all_tokens_with_user_id,delete_access_and_refresh_token_with_user_id
 from services.auth_helpers import issue_tokens_for_user
 from authlib.integrations.starlette_client import OAuth
 import os
@@ -139,7 +139,6 @@ async def update_user_by_id(user_id: str, user_data: UserUpdate, is_password_get
     Returns:
         _type_: UserOut
     """
-    from core.queue.manager import QueueManager
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid user ID format")
 
@@ -149,7 +148,7 @@ async def update_user_by_id(user_id: str, user_data: UserUpdate, is_password_get
     if not result:
         raise HTTPException(status_code=404, detail="User not found or update failed")
     if is_password_getting_changed is True:
-        QueueManager.get_instance().enqueue("delete_tokens", {"userId": user_id})
+        await delete_access_and_refresh_token_with_user_id(userId=user_id)
     return result
 
 async def authenticate_user_google(user_data: UserBase) -> UserOut:

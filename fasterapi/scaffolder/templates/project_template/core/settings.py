@@ -3,12 +3,21 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from functools import lru_cache
+from urllib.parse import quote
 
 
 def _split_csv(value: str | None) -> tuple[str, ...]:
     if not value:
         return tuple()
     return tuple(item.strip() for item in value.split(",") if item.strip())
+
+
+def _redis_url_from_parts() -> str:
+    host = os.getenv("REDIS_HOST") or "127.0.0.1"
+    port = os.getenv("REDIS_PORT") or "6379"
+    password = os.getenv("REDIS_PASSWORD")
+    auth = f"{quote(os.getenv('REDIS_USERNAME') or '')}:{quote(password)}@" if password else ""
+    return f"redis://{auth}{host}:{port}/0"
 
 
 @dataclass(frozen=True)
@@ -39,6 +48,7 @@ class Settings:
     flutterwave_secret_key: str | None
     flutterwave_public_key: str | None
     flutterwave_webhook_secret_hash: str | None
+    scheduler_enabled: bool
 
     @property
     def is_production(self) -> bool:
@@ -51,11 +61,7 @@ def get_settings() -> Settings:
     secret_key = os.getenv("SECRET_KEY", "")
     session_secret_key = os.getenv("SESSION_SECRET_KEY", "")
 
-    default_redis = (
-        os.getenv("CELERY_BROKER_URL")
-        or os.getenv("REDIS_URL")
-        or f"redis://{os.getenv('REDIS_HOST', '127.0.0.1')}:{os.getenv('REDIS_PORT', '6379')}/0"
-    )
+    default_redis = os.getenv("CELERY_BROKER_URL") or os.getenv("REDIS_URL") or _redis_url_from_parts()
 
     settings = Settings(
         env=env,
@@ -85,6 +91,9 @@ def get_settings() -> Settings:
         flutterwave_secret_key=os.getenv("FLUTTERWAVE_SECRET_KEY"),
         flutterwave_public_key=os.getenv("FLUTTERWAVE_PUBLIC_KEY"),
         flutterwave_webhook_secret_hash=os.getenv("FLW_WEBHOOK_SECRET_HASH"),
+        # Serverless platforms like Vercel have no long-running process to keep a scheduler alive.
+        scheduler_enabled=(os.getenv("ENABLE_SCHEDULER") or ("false" if os.getenv("VERCEL") else "true")).lower()
+        in {"1", "true", "yes"},
     )
 
     if settings.is_production:

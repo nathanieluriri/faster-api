@@ -17,6 +17,9 @@ from fasterapi.scaffolder.email_templates import (
     mount_custom_email_templates,
     mount_email_templates,
 )
+from fasterapi.scaffolder.database_setup import BACKENDS, use_database
+from fasterapi.scaffolder import deploy as deploy_tools
+from pathlib import Path
 import subprocess
 
 @click.group()
@@ -26,17 +29,54 @@ def cli():
     pass
 
 
+DB_OPTION = click.option(
+    "--db",
+    type=click.Choice(BACKENDS),
+    default="mongodb",
+    show_default=True,
+    help="Database backend. 'supabase' is Postgres through Supabase's connection pooler.",
+)
+DEPLOY_OPTION = click.option(
+    "--deploy",
+    type=click.Choice(deploy_tools.TARGETS),
+    default=None,
+    help="Also prepare the project for Vercel or Google Cloud Run.",
+)
+
+
+def _finish_new_project(project, db, deploy):
+    if db != "mongodb" and not use_database(db, project):
+        raise click.Abort()
+    if deploy and not deploy_tools.init_target(deploy, project):
+        raise click.Abort()
+
+
 @cli.command()
 @click.argument("name")
-def new(name):
-    """Create a new FastAPI project."""
-    create_project(name)
+@DB_OPTION
+@DEPLOY_OPTION
+def new(name, db, deploy):
+    """Create a new FastAPI project.
+
+    \b
+    Examples:
+        fasterapi new shop
+        fasterapi new shop --db supabase --deploy vercel
+        fasterapi new shop --db postgres --deploy cloudrun
+    """
+    if not create_project(name):
+        raise click.Abort()
+    _finish_new_project(Path.cwd() / name, db, deploy)
 
 
 @cli.command(name="new-here")
-def new_here():
+@DB_OPTION
+@DEPLOY_OPTION
+def new_here(db, deploy):
     """Create a new FastAPI project in the current directory."""
-    create_project_in_current_directory()
+    if not create_project_in_current_directory():
+        raise click.Abort()
+    _finish_new_project(Path.cwd(), db, deploy)
 
 
 @cli.command()
@@ -61,7 +101,8 @@ def make_crud(name):
     Notes:
         - The corresponding schema must already exist before running this.
     """
-    create_crud_file(name)
+    if not create_crud_file(name):
+        raise click.Abort()
     
 @cli.command()
 @click.argument("name")
@@ -83,7 +124,8 @@ def make_schema(name):
     Notes:
         - The schema will be created in the appropriate project folder.
     """
-    create_schema_file(name)
+    if not create_schema_file(name):
+        raise click.Abort()
     
 
 @cli.command()
@@ -205,6 +247,7 @@ def run_d():
         subprocess.run(["uvicorn", "main:app", "--reload"], check=True)
     except FileNotFoundError:
         click.secho("❌ Uvicorn is not installed. Run 'pip install uvicorn' and try again.", fg="red")
+        raise click.Abort()
     except subprocess.CalledProcessError as e:
         click.secho(f"❌ Failed to start server: {e}", fg="red")
         raise click.Abort()
@@ -286,10 +329,15 @@ def make_route(name, version_mode, yes):
                 show_choices=True,
             )
 
-    if version_mode == "latest-modified":
-        version = get_latest_modified_api_version()
-    else:  # "highest-number"
-        version = get_highest_numbered_api_version()
+    try:
+        if version_mode == "latest-modified":
+            version = get_latest_modified_api_version()
+        else:  # "highest-number"
+            version = get_highest_numbered_api_version()
+    except FileNotFoundError as e:
+        click.secho(f"❌ {e}", fg="red")
+        click.secho("💡 Run this from your project root, which needs an api/v1 folder.", fg="yellow")
+        raise click.Abort()
 
     click.secho(f"📌 Selected API version: {version}", fg="cyan")
     if not create_route_file(name, version):
@@ -397,7 +445,7 @@ def git_push_auto():
         - This is equivalent to running:
             git add .
             git commit -m "automated commit"
-            git push origin master
+            git push origin <current branch>
     """
     try:
         click.secho("Adding all changes...", fg="cyan")
@@ -406,8 +454,11 @@ def git_push_auto():
         click.secho("Committing with message 'automated commit'...", fg="cyan")
         subprocess.run(["git", "commit", "-m", "automated commit"], check=True)
 
-        click.secho("Pushing to origin master...", fg="cyan")
-        subprocess.run(["git", "push", "origin", "master"], check=True)
+        branch = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"], check=True, capture_output=True, text=True
+        ).stdout.strip()
+        click.secho(f"Pushing to origin {branch}...", fg="cyan")
+        subprocess.run(["git", "push", "origin", branch], check=True)
 
         click.secho("✅ Git workflow completed successfully!", fg="green")
 
@@ -420,6 +471,141 @@ def git_push_auto():
         click.secho("A Git command failed. Please check your repository status and try the commands manually.", fg="red")
         raise click.Abort()
 
+
+
+@cli.group()
+def db():
+    """
+    Choose the project's database backend.
+    """
+    pass
+
+
+@db.command(name="use")
+@click.argument("backend", type=click.Choice(BACKENDS))
+def db_use(backend):
+    """
+    Switch the current project to MongoDB, Postgres or Supabase.
+
+    \b
+    Examples:
+        fasterapi db use postgres
+        fasterapi db use supabase
+
+    Notes:
+        - Updates DB_TYPE in .env/.env.example and adds asyncpg to requirements.txt.
+        - Existing repositories keep working: the Postgres backend speaks the same
+          MongoDB-style API (tables are created automatically).
+    """
+    if not use_database(backend):
+        raise click.Abort()
+
+
+@cli.group()
+def deploy():
+    """
+    Prepare, check and deploy to Vercel or Google Cloud Run.
+    """
+    pass
+
+
+TARGET_ARGUMENT = click.argument("target", type=click.Choice(deploy_tools.TARGETS))
+ENV_FILE_OPTION = click.option("--env-file", default=None, help="Env file to read (default: .env, then .env.example).")
+
+
+@deploy.command(name="check")
+@click.option("--target", type=click.Choice(deploy_tools.TARGETS), required=True, help="Platform to check against.")
+@ENV_FILE_OPTION
+def deploy_check(target, env_file):
+    """
+    Report features and settings that won't work on the target platform.
+
+    \b
+    Examples:
+        fasterapi deploy check --target vercel
+        fasterapi deploy check --target cloudrun --env-file .env.production
+
+    Exits with status 1 when blocking errors are found, so it can run in CI.
+    """
+    findings, env_name = deploy_tools.check_project(target, env_file=env_file)
+    if not deploy_tools.print_findings(findings, target, env_name):
+        raise SystemExit(1)
+
+
+@deploy.command(name="init")
+@TARGET_ARGUMENT
+@click.option("--force", is_flag=True, help="Overwrite existing deployment files (backups are kept as .bak).")
+def deploy_init(target, force):
+    """
+    Add the files a platform needs (vercel.json, or a Cloud Run ready Dockerfile).
+
+    \b
+    Examples:
+        fasterapi deploy init vercel
+        fasterapi deploy init cloudrun
+    """
+    if not deploy_tools.init_target(target, force=force):
+        raise click.Abort()
+
+
+@deploy.command(name="vercel")
+@click.option("--prod", is_flag=True, help="Deploy to production instead of a preview URL.")
+@click.option("--push-env", is_flag=True, help="Upload env vars from the env file with 'vercel env add'.")
+@ENV_FILE_OPTION
+@click.option("--dry-run", is_flag=True, help="Print the commands without running them.")
+@click.option("--force", is_flag=True, help="Deploy even if the check finds errors.")
+def deploy_vercel(prod, push_env, env_file, dry_run, force):
+    """
+    Check the project, then deploy it with the Vercel CLI.
+
+    \b
+    Examples:
+        fasterapi deploy vercel --dry-run
+        fasterapi deploy vercel --prod --push-env
+    """
+    if not deploy_tools.deploy_vercel(prod=prod, push_env=push_env, env_file=env_file, dry_run=dry_run, force=force):
+        raise click.Abort()
+
+
+@deploy.command(name="cloudrun")
+@click.option("--service", required=True, help="Cloud Run service name.")
+@click.option("--region", default="us-central1", show_default=True, help="Region (Tier 1 regions are cheapest).")
+@click.option("--project", "gcp_project", default=None, help="Google Cloud project ID (default: gcloud config).")
+@ENV_FILE_OPTION
+@click.option("--allow-unauthenticated/--no-allow-unauthenticated", default=True, show_default=True, help="Make the API public.")
+@click.option("--min-instances", default=0, show_default=True, help="0 scales to zero so idle time is free.")
+@click.option("--max-instances", default=3, show_default=True, help="Caps scale-out to cap cost.")
+@click.option("--memory", default="512Mi", show_default=True)
+@click.option("--cpu", default="1", show_default=True)
+@click.option("--dry-run", is_flag=True, help="Print the gcloud command without running it.")
+@click.option("--force", is_flag=True, help="Deploy even if the check finds errors.")
+def deploy_cloudrun(service, region, gcp_project, env_file, allow_unauthenticated, min_instances, max_instances, memory, cpu, dry_run, force):
+    """
+    Check the project, then build and deploy it to Google Cloud Run from source.
+
+    \b
+    Examples:
+        fasterapi deploy cloudrun --service my-api --dry-run
+        fasterapi deploy cloudrun --service my-api --region europe-west1 --project my-gcp-project
+
+    Notes:
+        - Uses 'gcloud run deploy --source .', which builds the Dockerfile with Cloud Build.
+        - Env vars come from the env file; empty values and Cloud Run reserved names are skipped.
+    """
+    if not deploy_tools.deploy_cloudrun(
+        service=service,
+        region=region,
+        gcp_project=gcp_project,
+        env_file=env_file,
+        allow_unauthenticated=allow_unauthenticated,
+        min_instances=min_instances,
+        max_instances=max_instances,
+        memory=memory,
+        cpu=cpu,
+        dry_run=dry_run,
+        force=force,
+    ):
+        raise click.Abort()
 
 
 if __name__ == "__main__":

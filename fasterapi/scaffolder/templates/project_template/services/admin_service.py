@@ -12,7 +12,7 @@ from repositories.admin_repo import (
 )
 from schemas.admin_schema import AdminCreate, AdminUpdate, AdminOut,AdminBase,AdminRefresh
 from security.hash import check_password
-from repositories.tokens_repo import get_refresh_tokens,delete_access_token,delete_refresh_token,delete_all_tokens_with_admin_id
+from repositories.tokens_repo import get_refresh_tokens,delete_access_token,delete_refresh_token,delete_all_tokens_with_admin_id,delete_access_and_refresh_token_with_user_id
 from services.auth_helpers import issue_tokens_for_user
 
 
@@ -124,7 +124,6 @@ async def update_admin_by_id(admin_id: str, admin_data: AdminUpdate,is_password_
     Returns:
         _type_: AdminOut
     """
-    from core.queue.manager import QueueManager
 
     if not ObjectId.is_valid(admin_id):
         raise HTTPException(status_code=400, detail="Invalid admin ID format")
@@ -135,7 +134,7 @@ async def update_admin_by_id(admin_id: str, admin_data: AdminUpdate,is_password_
     if not result:
         raise HTTPException(status_code=404, detail="Admin not found or update failed")
     if is_password_getting_changed==True:
-        QueueManager.get_instance().enqueue("delete_tokens", {"userId": admin_id})
+        await delete_access_and_refresh_token_with_user_id(userId=admin_id)
     return result
 
 
