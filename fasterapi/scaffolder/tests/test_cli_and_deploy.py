@@ -62,6 +62,15 @@ def test_ready_project_passes_both_checks(runner):
         assert [s for s, _ in _messages(project, target) if s == "error"] == []
 
 
+def test_deploy_check_ignores_archived_copies_from_make_account(runner):
+    project = _new_project(runner, "--deploy", "vercel")
+    os.chdir(project)
+    assert runner.invoke(cli, ["make-account", "courier"]).exit_code == 0
+    assert list((project / ".fasterapi" / "archive").rglob("main.py"))
+    _write_env(project)
+    assert [m for s, m in _messages(project, "vercel") if s == "error"] == []
+
+
 def test_vercel_check_flags_serverless_incompatible_features(runner):
     project = _new_project(runner, "--deploy", "vercel")
     _write_env(project, STORAGE_BACKEND="local", ENABLE_SCHEDULER="true", EMAIL_QUEUE_ENABLED="true", REDIS_URL="redis://localhost:6379")

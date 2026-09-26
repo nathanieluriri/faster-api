@@ -16,7 +16,7 @@ TARGETS = ("vercel", "cloudrun")
 TEMPLATE_ROOT = Path(__file__).parent / "templates" / "project_template"
 
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "mongo", "redis", "postgres", "db"}
-_SKIP_DIRS = {".git", ".venv", "venv", "env", "__pycache__", "node_modules", "tests", ".vercel", "build", "dist", "site-packages"}
+_SKIP_DIRS = {".git", ".fasterapi", ".venv", "venv", "env", "__pycache__", "node_modules", "tests", ".vercel", "build", "dist", "site-packages"}
 _TRUE = {"1", "true", "yes", "on"}
 
 # Values Cloud Run sets itself and rejects in --env-vars-file.
